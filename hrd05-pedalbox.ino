@@ -10,8 +10,9 @@
   
 */
 
-#include <SPI.h>
-#include <mcp_can.h>
+//#include <SPI.h>
+//#include <mcp_can.h>
+#include <CAN.h>          // https://github.com/sandeepmistry/arduino-CAN
 
 #define TPS1_IN 0
 #define TPS2_IN 1
@@ -27,8 +28,22 @@ int BRAKE    = 0;
 int TPS1 = 0;
 int TPS2 = 0;
 
+// MCP_CAN CAN(10);
+
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
+  
+//  while (CAN_OK != CAN.begin(CAN_500KBPS)){
+//      Serial.println("CAN BUS init Failed");
+//      delay(100);
+//  }
+//  Serial.println("CAN BUS Shield Init OK!");
+
+  // start the CAN bus at 500 kbps
+  if (!CAN.begin(500E3)) {
+    Serial.println("Starting CAN failed!");
+    while (1);
+  }
 }
 
 void loop() {
@@ -36,8 +51,16 @@ void loop() {
   THROTTLE = plausibility_check(analogRead(TPS1_IN), analogRead(TPS2_IN));
   // BRAKE = plausibility_check(analogRead(BPS1_IN), analogRead(BPS2_IN));
   
+  THROTTLE = map(THROTTLE, 657, 254, 0, 255);
+  THROTTLE = constrain(THROTTLE, 0, 255);
   Serial.println(THROTTLE);
   
+  CAN.beginPacket(0x12);
+  CAN.write(THROTTLE);
+  CAN.write(BRAKE);
+  CAN.endPacket();
+  
+  delay(50);
 }
 
 int plausibility_check(int POT1, int POT2){
