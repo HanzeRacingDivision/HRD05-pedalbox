@@ -60,7 +60,7 @@ void loop() {
   CAN.write(BRAKE);
   CAN.endPacket();
   
-  delay(50);
+  delay(64);
 }
 
 int plausibility_check(int POT1, int POT2){
