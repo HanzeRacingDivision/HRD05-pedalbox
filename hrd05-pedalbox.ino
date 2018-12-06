@@ -10,9 +10,7 @@
   
 */
 
-//#include <SPI.h>
-//#include <mcp_can.h>
-#include <CAN.h>          // https://github.com/sandeepmistry/arduino-CAN
+#include <CAN.h> // https://github.com/sandeepmistry/arduino-CAN
 
 #define TPS1_IN 0
 #define TPS2_IN 1
@@ -20,7 +18,7 @@
 #define BPS2_IN 3
 
 #define MAX_DIFF 0.075 // 7.5% maximum difference
-#define POT_RATIO 0.3  // Electrical ratio between POTs
+#define POT_RATIO 0.74  // Electrical ratio between POTs
 
 int THROTTLE = 0;
 int BRAKE    = 0;
@@ -28,16 +26,8 @@ int BRAKE    = 0;
 int TPS1 = 0;
 int TPS2 = 0;
 
-// MCP_CAN CAN(10);
-
 void setup() {
   Serial.begin(115200);
-  
-//  while (CAN_OK != CAN.begin(CAN_500KBPS)){
-//      Serial.println("CAN BUS init Failed");
-//      delay(100);
-//  }
-//  Serial.println("CAN BUS Shield Init OK!");
 
   // start the CAN bus at 500 kbps
   if (!CAN.begin(500E3)) {
@@ -48,12 +38,30 @@ void setup() {
 
 void loop() {
   
-  THROTTLE = plausibility_check(analogRead(TPS1_IN), analogRead(TPS2_IN));
-  // BRAKE = plausibility_check(analogRead(BPS1_IN), analogRead(BPS2_IN));
+  THROTTLE = plausibility_check(analogRead(TPS1_IN), analogRead(TPS2_IN), 0.74);
+  BRAKE = plausibility_check(analogRead(BPS1_IN), analogRead(BPS2_IN), 0.74);
+
+//  Serial.print(analogRead(TPS1_IN));
+//  Serial.print("\t");
+//  Serial.print(analogRead(TPS2_IN));
+//  Serial.println();
+
+  THROTTLE = map(THROTTLE, 784, 349, 0, 255);
+  THROTTLE = constrain(THROTTLE, 0, 255); 
+
+  BRAKE = map(BRAKE, 784, 349, 0, 255);
+  BRAKE = constrain(BRAKE, 0, 255);
+
+  // Prevent BSPD from triggering
+  // - 5kW from 66kW is 7.5%, so 19 of 255.
+  // - 50% of brake is considered 'hard braking' for now.
+  if(THROTTLE >= 19 && BRAKE >= 127) {
+    THROTTLE = 0;
+    BRAKE = 0;
+  }
   
-  THROTTLE = map(THROTTLE, 657, 254, 0, 255);
-  THROTTLE = constrain(THROTTLE, 0, 255);
   Serial.println(THROTTLE);
+  Serial.println(BRAKE);
   
   CAN.beginPacket(0x12);
   CAN.write(THROTTLE);
@@ -63,7 +71,7 @@ void loop() {
   delay(64);
 }
 
-int plausibility_check(int POT1, int POT2){
+int plausibility_check(int POT1, int POT2, float POT_RATIO){
 
   int OUT = 0;
   
@@ -72,6 +80,8 @@ int plausibility_check(int POT1, int POT2){
 
   if(DIFF >= MAX_DIFF){
     Serial.println("IMPLAUSIBLE SIGNAL");
+    THROTTLE = 0;
+    BRAKE = 0;
   } else {
     OUT = (POT1 + POT2) / 2;
   }
