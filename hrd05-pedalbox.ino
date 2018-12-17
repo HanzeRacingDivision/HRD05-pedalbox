@@ -38,8 +38,8 @@ void setup() {
 
 void loop() {
   
-  THROTTLE = plausibility_check(analogRead(TPS1_IN), analogRead(TPS2_IN), 0.74);
-  BRAKE = plausibility_check(analogRead(BPS1_IN), analogRead(BPS2_IN), 0.74);
+  THROTTLE = plausibility_check(analogRead(TPS1_IN), analogRead(TPS2_IN));
+  BRAKE = plausibility_check(analogRead(BPS1_IN), analogRead(BPS2_IN));
 
 //  Serial.print(analogRead(TPS1_IN));
 //  Serial.print("\t");
@@ -71,7 +71,7 @@ void loop() {
   delay(64);
 }
 
-int plausibility_check(int POT1, int POT2, float POT_RATIO){
+int plausibility_check(int POT1, int POT2){
 
   int OUT = 0;
   
