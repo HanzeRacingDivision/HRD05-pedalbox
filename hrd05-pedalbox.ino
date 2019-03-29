@@ -8,6 +8,7 @@
   Pedalbox code for the HRD05
   Mark Oosting, 2019
   Joram de Poel, 2019
+  Vincent van der Woude, 2019
 
 */
 
