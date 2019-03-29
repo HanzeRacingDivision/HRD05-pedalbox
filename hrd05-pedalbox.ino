@@ -21,11 +21,17 @@
 
 float MAX_DIFF = 0.075;
 
-int THROTTLE = 0;
-int BRAKE    = 0;
+byte THROTTLE = 0;
+byte BRAKE    = 0;
  
-int POT_RATIO = 0.74;
+float POT_RATIO = 0.74;
 
+int APS1_OFFSET = 0;
+int APS2_OFFSET = 0;
+int BPS1_OFFSET = 0;
+int BPS2_OFFSET = 0;
+
+// Limits of sensor output
 int APS1_LOW = 784;
 int APS2_LOW = 349;
 int BPS1_LOW = 784;
@@ -124,10 +130,10 @@ void loop() {
   AV_BPS1 /= BUFFERSIZE;
   AV_BPS2 /= BUFFERSIZE;
   // Map to fix slope (and make sure not to create DIV/0 errors in the process)
-  AV_APS1 = map(AV_APS1, APS1_LOW, APS1_HIGH, 1, 1024)
-  AV_APS2 = map(AV_APS2, APS2_LOW, APS2_HIGH, 1024, 1)
-  AV_BPS1 = map(AV_BPS1, BPS1_LOW, BPS1_HIGH, 1, 1024)
-  AV_BPS2 = map(AV_BPS2, BPS2_LOW, BPS2_HIGH, 1024, 1)
+  AV_APS1 = map(AV_APS1-APS1_OFFSET, APS1_LOW, APS1_HIGH, 1, 1024)
+  AV_APS2 = map(AV_APS2-APS2_OFFSET, APS2_LOW, APS2_HIGH, 1024, 1)
+  AV_BPS1 = map(AV_BPS1-BPS1_OFFSET, BPS1_LOW, BPS1_HIGH, 1, 1024)
+  AV_BPS2 = map(AV_BPS2-BPS2_OFFSET, BPS2_LOW, BPS2_HIGH, 1024, 1)
   // Check for signal shorts to GND or 5V
   if( AV_APS1 < 1 || AV_APS1 > 1024) STATUS = 11;
   if( AV_APS2 < 1 || AV_APS2 > 1024) STATUS = 12;
