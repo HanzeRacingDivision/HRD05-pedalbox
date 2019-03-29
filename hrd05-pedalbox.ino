@@ -39,17 +39,31 @@ bool first_BPS_Error = false;
 bool APS_Error = true;          //do a reading first to clear the error.
 bool BPS_Error = true;
 
-int LPF_APS1[50];           //low pass filter APS sensor 1
-int LPF_APS2[50];
-int LPF_BPS1[50];
-int LPF_BPS2[50];
+byte BUFFERSIZE = 50
+int LPF_APS1[BUFFERSIZE];           //moving average APS sensor 1
+int LPF_APS2[BUFFERSIZE];
+int LPF_BPS1[BUFFERSIZE];
+int LPF_BPS2[BUFFERSIZE];
 
-int AV_APS1 = 0;          //average value after filter for APS 1
-int AV_APS2 = 0;
-int AV_BPS1 = 0;
-int AV_BPS2 = 0;
+unsigned int AV_APS1 = 0;          //average value after filter for APS 1
+unsigned int AV_APS2 = 0;
+unsigned int AV_BPS1 = 0;
+unsigned int AV_BPS2 = 0;
 
 void setup() {
+
+  AV_APS1 = analogRead(APS1_IN);  //Get initial value to fill array
+  AV_APS2 = analogRead(APS2_IN);
+  AV_BPS1 = analogRead(BPS1_IN);
+  AV_BPS2 = analogRead(BPS2_IN);
+
+  for(int i=0; i<BUFFERSIZE; i++){  // Run for loop to fill array
+    LPF_APS1[i] = AV_APS1
+    LPF_APS2[i] = AV_APS2
+    LPF_BPS1[i] = AV_BPS1
+    LPF_BPS2[i] = AV_BPS2
+  }
+
   Serial.begin(115200);
 
   // start the CAN bus at 500 kbps
@@ -62,30 +76,41 @@ void setup() {
 void loop() {
 
   //continuesly run this piece of code
+  //average to 0
+  AV_APS1 = 0;                        
+  AV_APS2 = 0;
+  AV_BPS1 = 0;
+  AV_BPS2 = 0;
   do {
-    LPF_APS1[0] = analogRead(APS1_IN);      //read all current sensor values
+    for (int i = 0; i < (BUFFERSIZE-1); i++) {          //
+      //add value for average:
+      AV_APS1 += LPF_APS1[i];             
+      AV_APS2 += LPF_APS2[i];
+      AV_BPS1 += LPF_BPS1[i];
+      AV_BPS2 += LPF_BPS2[i];
+      //shift all values by one:
+      LPF_APS1[i+1] = LPF_APS1[i];        
+      LPF_APS2[i+1] = LPF_APS2[i];
+      LPF_BPS1[i+1] = LPF_BPS1[i];
+      LPF_BPS2[i+1] = LPF_BPS2[i];
+    }
+    LPF_APS1[0] = analogRead(APS1_IN);      //read new current sensor values
     LPF_APS2[0] = analogRead(APS2_IN);
     LPF_BPS1[0] = analogRead(BPS1_IN);
     LPF_BPS1[0] = analogRead(BPS2_IN);
 
-    int AV_APS1 = 0;                        //average to 0
-    int AV_APS2 = 0;
-    int AV_BPS1 = 0;
-    int AV_BPS2 = 0;
-    for (int i = 49; i > 0; i--) {
-      LPF_APS1[i] = LPF_APS1[i - 1];        //shift all values by one
-      LPF_APS2[i] = LPF_APS2[i - 1];
-      LPF_BPS1[i] = LPF_BPS1[i - 1];
-      LPF_BPS2[i] = LPF_BPS2[i - 1];
-      AV_APS1 += LPF_APS1[i];               //add value for average
-      AV_APS2 += LPF_APS2[i];
-      AV_BPS1 += LPF_BPS1[i];
-      AV_BPS2 += LPF_BPS2[i];
-    }
-    AV_APS1 /= 50;
-    AV_APS2 /= 50;
-    AV_BPS1 /= 50;
-    AV_BPS2 /= 50;
+    AV_APS1 += LPF_APS1[0];               //add new value to average
+    AV_APS2 += LPF_APS2[0];
+    AV_BPS1 += LPF_BPS1[0];
+    AV_BPS2 += LPF_BPS2[0];
+
+    AV_APS1 /= BUFFERSIZE;  //Divide to find average value
+    AV_APS2 /= BUFFERSIZE;
+    AV_BPS1 /= BUFFERSIZE;
+    AV_BPS2 /= BUFFERSIZE;
+    
+    
+    
 
   } while (millis() - last > looptime);
 
