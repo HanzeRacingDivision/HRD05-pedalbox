@@ -26,6 +26,7 @@ int BRAKE    = 0;
 
 int APS1_OFFSET = 200;       //hardware offset for pot 2 to create an offset
 int BPS1_OFFSET = 200;
+int POT_RATIO = 0.74;
 
 unsigned long last = 0;     //millis when last loop was executed
 int looptime = 20;          //execute the loop every 20 ms and read sensors continiously
@@ -45,19 +46,19 @@ int LPF_APS2[BUFFERSIZE];
 int LPF_BPS1[BUFFERSIZE];
 int LPF_BPS2[BUFFERSIZE];
 
-unsigned int AV_APS1 = 0;          //average value after filter for APS 1
-unsigned int AV_APS2 = 0;
-unsigned int AV_BPS1 = 0;
-unsigned int AV_BPS2 = 0;
+unsigned long AV_APS1 = 0;          //average value after filter for APS 1
+unsigned long AV_APS2 = 0;
+unsigned long AV_BPS1 = 0;
+unsigned long AV_BPS2 = 0;
 
 void setup() {
-
-  AV_APS1 = analogRead(APS1_IN);  //Get initial value to fill array
+  //Get initial values to fill arrays:
+  AV_APS1 = analogRead(APS1_IN);  
   AV_APS2 = analogRead(APS2_IN);
   AV_BPS1 = analogRead(BPS1_IN);
   AV_BPS2 = analogRead(BPS2_IN);
-
-  for(int i=0; i<BUFFERSIZE; i++){  // Run for loop to fill array
+  // Run for loop to fill array:
+  for(int i=0; i<BUFFERSIZE; i++){  
     LPF_APS1[i] = AV_APS1
     LPF_APS2[i] = AV_APS2
     LPF_BPS1[i] = AV_BPS1
@@ -66,7 +67,7 @@ void setup() {
 
   Serial.begin(115200);
 
-  // start the CAN bus at 500 kbps
+  // Start the CAN bus at 500 kbps
   if (!CAN.begin(500E3)) {
     Serial.println("Starting CAN failed!");
     while (1);
@@ -74,49 +75,45 @@ void setup() {
 }
 
 void loop() {
-
-  //continuesly run this piece of code
-  //average to 0
-  AV_APS1 = 0;                        
-  AV_APS2 = 0;
-  AV_BPS1 = 0;
-  AV_BPS2 = 0;
+  // Update moving average for pedal sensors:
   do {
-    for (int i = 0; i < (BUFFERSIZE-1); i++) {          //
-      //add value for average:
+    // Average to 0:
+    AV_APS1 = 0;                        
+    AV_APS2 = 0;
+    AV_BPS1 = 0;
+    AV_BPS2 = 0;
+
+    for (int i = 0; i < (BUFFERSIZE-1); i++) {
+      // Add value for average:
       AV_APS1 += LPF_APS1[i];             
       AV_APS2 += LPF_APS2[i];
       AV_BPS1 += LPF_BPS1[i];
       AV_BPS2 += LPF_BPS2[i];
-      //shift all values by one:
+      // Shift all values by one:
       LPF_APS1[i+1] = LPF_APS1[i];        
       LPF_APS2[i+1] = LPF_APS2[i];
       LPF_BPS1[i+1] = LPF_BPS1[i];
       LPF_BPS2[i+1] = LPF_BPS2[i];
     }
-    LPF_APS1[0] = analogRead(APS1_IN);      //read new current sensor values
+    // Read new current sensor values:
+    LPF_APS1[0] = analogRead(APS1_IN);      
     LPF_APS2[0] = analogRead(APS2_IN);
     LPF_BPS1[0] = analogRead(BPS1_IN);
     LPF_BPS1[0] = analogRead(BPS2_IN);
-
-    AV_APS1 += LPF_APS1[0];               //add new value to average
+    // Add new value to average:
+    AV_APS1 += LPF_APS1[0];               
     AV_APS2 += LPF_APS2[0];
     AV_BPS1 += LPF_BPS1[0];
     AV_BPS2 += LPF_BPS2[0];
-
-    AV_APS1 /= BUFFERSIZE;  //Divide to find average value
+    // Divide sum to find average value:
+    AV_APS1 /= BUFFERSIZE;  
     AV_APS2 /= BUFFERSIZE;
     AV_BPS1 /= BUFFERSIZE;
     AV_BPS2 /= BUFFERSIZE;
-    
-    
-    
-
   } while (millis() - last > looptime);
 
-  THROTTLE = plausibility_check(AV_APS1, AV_APS2, true);
-  BRAKE = plausibility_check(AV_BPS1, AV_BPS2, false);
-
+  THROTTLE = plausibility_check(AV_APS1, AV_APS2);
+  BRAKE = plausibility_check(AV_BPS1, AV_BPS2);
 
   THROTTLE = map(THROTTLE, 784, 349, 0, 255);
   THROTTLE = constrain(THROTTLE, 0, 255);
@@ -186,7 +183,7 @@ void loop() {
 //   }
 // }
 
-int plausibility_check(int POT1, int POT2) {
+int plausibility_check(unsigned long POT1, unsigned long POT2) {
 
   int OUT = 0;
 
