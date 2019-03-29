@@ -19,15 +19,13 @@
 #define BPS1_IN 2
 #define BPS2_IN 3
 
-//int MAX_DIFF_MS = 100;  // This parameter not used anymore; we always kill the car when we detect errors
 float MAX_DIFF = 0.075;
 
 int THROTTLE = 0;
 int BRAKE    = 0;
-// These offsets were never used in the code:
-// int APS1_OFFSET = 200;       //hardware offset for pot 2 to create an offset
-// int BPS1_OFFSET = 200;     
+ 
 int POT_RATIO = 0.74;
+
 int APS1_LOW = 784;
 int APS2_LOW = 349;
 int BPS1_LOW = 784;
@@ -40,11 +38,6 @@ int BPS2_HIGH = 784;
 unsigned long last = 0;     //millis when last loop was executed
 int DATA_RATE = 20;          // Send CAN frame every 20 ms (and read sensors continuously)
 
-unsigned long firstAPSErrorTime = 0;      //millis when the values were different for the first time
-unsigned long firstBPSErrorTime = 0;
-
-bool first_APS_Error = false;     //is the first APS error time recorded? this is used for measuring the 100 ms which are allowed to have a different sensor value
-bool first_BPS_Error = false;
 /* ERROR STATUS:
   SAFE STATUS:        0
   STARTUP STATUS:     1
@@ -55,19 +48,17 @@ bool first_BPS_Error = false;
   APS IMPLAUSIBLE:    30
   BPS IMPLAUSIBLE:    40
   BSPD:               50
-
-  
 */
 byte STATUS = 1;
 
-
 byte BUFFERSIZE = 50
-int LPF_APS1[BUFFERSIZE];           //moving average APS sensor 1
+//moving average for sensors
+int LPF_APS1[BUFFERSIZE];           
 int LPF_APS2[BUFFERSIZE];
 int LPF_BPS1[BUFFERSIZE];
 int LPF_BPS2[BUFFERSIZE];
-
-long AV_APS1 = 0;          //average value after filter for APS 1
+//average value after moving average
+long AV_APS1 = 0;          
 long AV_APS2 = 0;
 long AV_BPS1 = 0;
 long AV_BPS2 = 0;
@@ -143,8 +134,6 @@ void loop() {
   if( AV_BPS1 < 1 || AV_BPS1 > 1024) STATUS = 21;
   if( AV_BPS2 < 1 || AV_BPS2 > 1024) STATUS = 22;
  
-  
-  
   // Check for signal plausibility
   if( plausibility_check(AV_APS1, AV_APS2)){
     THROTTLE = 0;
@@ -159,9 +148,9 @@ void loop() {
 
  
   //Map to PWM range (0-255) and constrain
-  THROTTLE = map(AV_APS1, 1, 1024, 0, 255)/map(AV_APS2, 1, 1024, 0, 255);
+  THROTTLE = map( (AV_APS1+AV_APS2)/2, 1, 1024, 0, 255);
   THROTTLE = constrain(THROTTLE, 0, 255);
-  BRAKE = map(AV_BPS1, 1, 1024, 0, 255)/map(AV_BPS2, 1, 1024, 0, 255);
+  BRAKE = map( (AV_BPS1+AV_BPS2)/2, 1, 1024, 0, 255);
   BRAKE = constrain(BRAKE, 0, 255);
 
 
@@ -192,47 +181,6 @@ void loop() {
     last=millis();
   }
 }
-
-
-
-// int plausibility_check(int POT1, int POT2, bool isTPS) {
-
-//   if ((POT1 + (POT1 / 10)) < POT2 || (POT2 + (POT2 / 10)) < POT1) { //if on pot is more than 10% lager or smaller than the other    !! PLEASE CHECK THIS PART !!
-//     return 0;
-//     if (isTPS) {
-//       if (first_TPS_Error) {              //if it is the TPS sensor and the error flag is not yet set
-//         firstTPSErrorTime = millis();         //set current time for the first error
-//       }
-//       if (millis() - firstTPSErrorTime > MAX_DIFF_MS) { //AAAAAAAAAAAAAAHHHH SOMETHING WENT HORRBLY WRONG< STOP THE CAR!!!
-//         TPS_Error = true;
-//         THROTTLE = 0;
-//         BRAKE = 0;
-//       }
-//     }
-//     else {
-//       if (first_BPS_Error) {              //if it is the BPS sensor and the error flag is not yet set
-//         firstBPSErrorTime = millis();         //set current time for the first error
-//       }
-//       if (millis() - firstBPSErrorTime > MAX_DIFF_MS) { //AAAAAAAAAAAAAAHHHH SOMETHING WENT HORRBLY WRONG< STOP THE CAR!!!
-//         BPS_Error = true;
-//         THROTTLE = 0;
-//         BRAKE = 0;
-//       }
-//     }
-//   }
-
-//   else {    //everything is doing fine
-//     return (POT1 + POT2) / 2;     //return average from both POTS
-
-//     if (isTPS) {
-//       first_TPS_Error = true;       //reset flag
-//       TPS_Error = false;
-//     } else {
-//       first_BPS_Error = true;       //reset flag
-//       BPS_Error = false;
-//     }
-//   }
-// }
 
 bool plausibility_check(long POT1, long POT2) {
 
