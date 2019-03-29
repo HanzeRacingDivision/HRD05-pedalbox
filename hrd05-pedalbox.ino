@@ -20,16 +20,17 @@
 #define BPS2_IN 3
 
 int MAX_DIFF_MS = 100;
+float MAX_DIFF = 0.075;
 
 int THROTTLE = 0;
 int BRAKE    = 0;
-
-int APS1_OFFSET = 200;       //hardware offset for pot 2 to create an offset
-int BPS1_OFFSET = 200;
+// These offsets were never used in the code:
+// int APS1_OFFSET = 200;       //hardware offset for pot 2 to create an offset
+// int BPS1_OFFSET = 200;     
 int POT_RATIO = 0.74;
 
 unsigned long last = 0;     //millis when last loop was executed
-int looptime = 20;          //execute the loop every 20 ms and read sensors continiously
+int DATA_RATE = 20;          // Send CAN frame every 20 ms (and read sensors continiously)
 
 unsigned long firstAPSErrorTime = 0;      //millis when the values were different for the first time
 unsigned long firstBPSErrorTime = 0;
@@ -72,46 +73,44 @@ void setup() {
     Serial.println("Starting CAN failed!");
     while (1);
   }
+  last = millis();
 }
 
 void loop() {
-  // Update moving average for pedal sensors:
-  do {
-    // Average to 0:
-    AV_APS1 = 0;                        
-    AV_APS2 = 0;
-    AV_BPS1 = 0;
-    AV_BPS2 = 0;
+// Update moving average for pedal sensors:
+// Average to 0:
+  AV_APS1 = 0;                        
+  AV_APS2 = 0;
+  AV_BPS1 = 0;
+  AV_BPS2 = 0;
 
-    for (int i = 0; i < (BUFFERSIZE-1); i++) {
-      // Add value for average:
-      AV_APS1 += LPF_APS1[i];             
-      AV_APS2 += LPF_APS2[i];
-      AV_BPS1 += LPF_BPS1[i];
-      AV_BPS2 += LPF_BPS2[i];
-      // Shift all values by one:
-      LPF_APS1[i+1] = LPF_APS1[i];        
-      LPF_APS2[i+1] = LPF_APS2[i];
-      LPF_BPS1[i+1] = LPF_BPS1[i];
-      LPF_BPS2[i+1] = LPF_BPS2[i];
-    }
-    // Read new current sensor values:
-    LPF_APS1[0] = analogRead(APS1_IN);      
-    LPF_APS2[0] = analogRead(APS2_IN);
-    LPF_BPS1[0] = analogRead(BPS1_IN);
-    LPF_BPS1[0] = analogRead(BPS2_IN);
-    // Add new value to average:
-    AV_APS1 += LPF_APS1[0];               
-    AV_APS2 += LPF_APS2[0];
-    AV_BPS1 += LPF_BPS1[0];
-    AV_BPS2 += LPF_BPS2[0];
-    // Divide sum to find average value:
-    AV_APS1 /= BUFFERSIZE;  
-    AV_APS2 /= BUFFERSIZE;
-    AV_BPS1 /= BUFFERSIZE;
-    AV_BPS2 /= BUFFERSIZE;
-  } while (millis() - last > looptime);
-
+  for (int i = 0; i < (BUFFERSIZE-1); i++) {
+    // Add value for average:
+    AV_APS1 += LPF_APS1[i];             
+    AV_APS2 += LPF_APS2[i];
+    AV_BPS1 += LPF_BPS1[i];
+    AV_BPS2 += LPF_BPS2[i];
+    // Shift all values by one:
+    LPF_APS1[i+1] = LPF_APS1[i];        
+    LPF_APS2[i+1] = LPF_APS2[i];
+    LPF_BPS1[i+1] = LPF_BPS1[i];
+    LPF_BPS2[i+1] = LPF_BPS2[i];
+  }
+  // Read new current sensor values:
+  LPF_APS1[0] = analogRead(APS1_IN);      
+  LPF_APS2[0] = analogRead(APS2_IN);
+  LPF_BPS1[0] = analogRead(BPS1_IN);
+  LPF_BPS1[0] = analogRead(BPS2_IN);
+  // Add new value to average:
+  AV_APS1 += LPF_APS1[0];               
+  AV_APS2 += LPF_APS2[0];
+  AV_BPS1 += LPF_BPS1[0];
+  AV_BPS2 += LPF_BPS2[0];
+  // Divide sum to find average value:
+  AV_APS1 /= BUFFERSIZE;  
+  AV_APS2 /= BUFFERSIZE;
+  AV_BPS1 /= BUFFERSIZE;
+  AV_BPS2 /= BUFFERSIZE;
   THROTTLE = plausibility_check(AV_APS1, AV_APS2);
   BRAKE = plausibility_check(AV_BPS1, AV_BPS2);
 
@@ -128,18 +127,20 @@ void loop() {
     THROTTLE = 0;
     BRAKE = 0;        //this means you release the brake??? whouldn't you keep sending the correct value?
   }
+  // If time since last packet transmission > DATA_RATE, send new packet:
+  if(millis() - last > DATA_RATE){
+    Serial.println(THROTTLE);
+    Serial.println(BRAKE);
 
-  Serial.println(THROTTLE);
-  Serial.println(BRAKE);
-
-  CAN.beginPacket(0x12);
-  CAN.write(THROTTLE);
-  CAN.write(BRAKE);
-  CAN.write(APS_Error);
-  CAN.write(BPS_Error);
-  CAN.endPacket();
-
-  last = millis();        //reset loop timer
+    CAN.beginPacket(0x12);
+    CAN.write(THROTTLE);
+    CAN.write(BRAKE);
+    CAN.write(APS_Error);
+    CAN.write(BPS_Error);
+    CAN.endPacket();
+    // Update timer:
+    last=millis();
+  }
 }
 
 
@@ -190,7 +191,7 @@ int plausibility_check(unsigned long POT1, unsigned long POT2) {
   float RATIO = (float)POT1 / (float)POT2;
   float DIFF = abs(RATIO - POT_RATIO);
 
-  if (DIFF >= MAX_DIFF) {
+  if (DIFF > MAX_DIFF) {
     Serial.println("IMPLAUSIBLE SIGNAL");
     THROTTLE = 0;
     BRAKE = 0;
