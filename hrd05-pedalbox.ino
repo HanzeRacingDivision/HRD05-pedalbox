@@ -176,7 +176,7 @@ void loop() {
     Serial.print("Brake setting is: ")
     Serial.println(BRAKE);
     Serial.print("Error state is: ")
-    Serial.println(ERROR)
+    Serial.println(STATUS)
 
     CAN.beginPacket(0x12);
     CAN.write(THROTTLE);
