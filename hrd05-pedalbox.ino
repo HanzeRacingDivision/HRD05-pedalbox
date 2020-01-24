@@ -1,205 +1,219 @@
-/*
-      __  __                          ____             _                ____  _       _      _
-     / / / /___ _____  ____  ___     / __ \____ ______(_)___  ____ _   / __ \(_)   __(_)____(_)___  ____
-    / /_/ / __ `/ __ \/_  / / _ \   / /_/ / __ `/ ___/ / __ \/ __ `/  / / / / / | / / / ___/ / __ \/ __ \
-   / __  / /_/ / / / / / /_/  __/  / _, _/ /_/ / /__/ / / / / /_/ /  / /_/ / /| |/ / (__  ) / /_/ / / / /
-  /_/ /_/\__,_/_/ /_/ /___/\___/  /_/ |_|\__,_/\___/_/_/ /_/\__, /  /_____/_/ |___/_/____/_/\____/_/ /_/
+#include <SPI.h>
+#include <mcp2515.h>    /// Some other libraries will be included when switching to the ESP32 + Transciever setup.
 
-  Pedalbox code for the HRD05
-  Mark Oosting, 2019
-  Joram de Poel, 2019
-  Vincent van der Woude, 2019
 
-*/
+int led=3;               /// LED will turn on when accelerator signal will be present. It is intended for testing purposes.
+int led2=4;              /// LED will turn on when brake signal will be present. It is intended for testing purposes.
+int buzzer=5;
 
-#include <CAN.h> // https://github.com/sandeepmistry/arduino-CAN
+float APPS1=A0;             ///Potentiometer 1 of the accelerator pedal
+float APPS2=A1;             ///Potentiometer 2 of the accelerator pedal
+float APPS[3]={0};          ///Array for storing 2 values to average when mapping the throttle
+float APPS_AVERAGE=0;        ///Average of the two values read every 5ms
 
-#define APS1_IN 0
-#define APS2_IN 1
-#define BPS1_IN 2
-#define BPS2_IN 3
+float BPS=5;
 
-float MAX_DIFF = 0.075;
+float throttle=0;      ///The final value of the throttle signal after the plausibility check.
+float brake=0;         ///The final value of the brake signal after the plausibility check
 
-byte THROTTLE = 0;
-byte BRAKE    = 0;
- 
-float POT_RATIO = 0.74;
 
-int APS1_OFFSET = 0;
-int APS2_OFFSET = 0;
-int BPS1_OFFSET = 0;
-int BPS2_OFFSET = 0;
+float POT_RATIO = 0.74;             ///The sensitivity ratio calculeted between the accelerator sensors.
+float POT_OFFSET= 100;              ///The physical difference calculated between the accelerator sensors.
+float MAX_DIFF = 0.1;              ///The maximum diference in percentage between two sensors
+float MAX_DIFF_TRAVEL = 90;         ///Maximum difference is 10% of the 0 to 1023 Arduino values
 
-// Limits of sensor output
-int APS1_LOW = 784;
-int APS2_LOW = 349;
-int BPS1_LOW = 784;
-int BPS2_LOW = 349;
-int APS1_HIGH = 349;
-int APS2_HIGH = 784;
-int BPS1_HIGH = 349;
-int BPS2_HIGH = 784;
+unsigned long last_read;           ///millis when last loop was executed. Updated every 5ms
+unsigned long last_can;            ///millis when last loop was executed. Updated every 10ms
+int DATA_RATE = 10;                /// Send CAN frame every 10 ms (and read sensors continuously)
 
-unsigned long last = 0;     //millis when last loop was executed
-int DATA_RATE = 20;          // Send CAN frame every 20 ms (and read sensors continuously)
+MCP2515 mcp2515(10);
 
-/* ERROR STATUS:
-  SAFE STATUS:        0
-  STARTUP STATUS:     1
-  APS1 OUT OF RANGE:  11
-  APS2 OUT OF RANGE:  12
-  BPS1 OUT OF RANGE:  21
-  BPS2 OUT OF RANGE:  22
-  APS IMPLAUSIBLE:    30
-  BPS IMPLAUSIBLE:    40
-  BSPD:               50
-*/
-byte STATUS = 1;
+struct can_frame canMsgStandby;         ///Initializing CAN message to the bus. This message sends the Standby state of the inverter
+struct can_frame canMsgRTD;             /// This message allows the inverter to read the throttle torque request
+struct can_frame canMsgStart;           /// Reading the Dashboard Ready-To-Drive state
 
-byte BUFFERSIZE = 50
-//moving average for sensors
-int LPF_APS1[BUFFERSIZE];           
-int LPF_APS2[BUFFERSIZE];
-int LPF_BPS1[BUFFERSIZE];
-int LPF_BPS2[BUFFERSIZE];
-//average value after moving average
-long AV_APS1 = 0;          
-long AV_APS2 = 0;
-long AV_BPS1 = 0;
-long AV_BPS2 = 0;
 
 void setup() {
-  //Get initial values to fill arrays:
-  AV_APS1 = analogRead(APS1_IN);  
-  AV_APS2 = analogRead(APS2_IN);
-  AV_BPS1 = analogRead(BPS1_IN);
-  AV_BPS2 = analogRead(BPS2_IN);
-  // Run for loop to fill array:
-  for(int i=0; i<BUFFERSIZE; i++){  
-    LPF_APS1[i] = AV_APS1
-    LPF_APS2[i] = AV_APS2
-    LPF_BPS1[i] = AV_BPS1
-    LPF_BPS2[i] = AV_BPS2
-  }
 
-  Serial.begin(115200);
+  Serial.begin(9600);
+  pinMode(led, OUTPUT);         ///Declaring LED as output
+  pinMode(led2,OUTPUT);
+  SPI.begin();                  ///Initializes the SPI bus by setting SCK, MOSI, and SS to outputs, pulling SCK and MOSI low, and SS high.
+  pinMode(BPS, INPUT);
+  pinMode(buzzer,OUTPUT);
+                        
+  mcp2515.reset();
+  mcp2515.setBitrate(CAN_500KBPS,MCP_8MHZ);             ///Initializing mcp2515 CAN, speed/bitrate, sets to normal mode
+  mcp2515.setNormalMode();
 
-  // Start the CAN bus at 500 kbps
-  if (!CAN.begin(500E3)) {
-    Serial.println("Starting CAN failed!");
-    while (1);
+  last_read=millis();
+  last_can=millis();
+
+  delay(2000);
+  /// Set the inverter to Standby
+  canMsgStandby.can_id  = 0x210;
+  canMsgStandby.can_dlc = 8;
+  canMsgStandby.data[0] = 0;      
+  canMsgStandby.data[1] = 0x00;   
+  canMsgStandby.data[2] = 0;           
+  canMsgStandby.data[3] = 0x00;
+  canMsgStandby.data[4] = 0x00;
+  canMsgStandby.data[5] = 0x00;
+  canMsgStandby.data[6] = 0x00;
+  canMsgStandby.data[7] = 0x00;
+  mcp2515.sendMessage(&canMsgStandby);
+  
+  while (1)
+      {
+        if (mcp2515.readMessage(&canMsgStart) == MCP2515::ERROR_OK){
+          Serial.print(canMsgStart.can_id, HEX); // print ID
+          Serial.print(" "); 
+          Serial.print(canMsgStart.can_dlc, HEX); // print DLC
+          Serial.print(" ");
+          int b=canMsgStart.data[0];  /// Read RTD button from the Dashboard ESP via CAN
+          int t=canMsgStart.data[1];  /// Read TS status from the Dashboard ESP via CAN
+          if(b==1 && digitalRead(BPS)==1 && t==1)
+            {
+              tone(buzzer, 3000, 3000);
+              break;
+            }
+          }
+      }
+
+  delay(1000);
+}
+
+void fake_setup()
+{
+  /// Set the inverter to Standby
+  canMsgStandby.can_id  = 0x210;
+  canMsgStandby.can_dlc = 8;
+  canMsgStandby.data[0] = 0;      
+  canMsgStandby.data[1] = 0x00;   
+  canMsgStandby.data[2] = 0;           
+  canMsgStandby.data[3] = 0x00;
+  canMsgStandby.data[4] = 0x00;
+  canMsgStandby.data[5] = 0x00;
+  canMsgStandby.data[6] = 0x00;
+  canMsgStandby.data[7] = 0x00;
+  mcp2515.sendMessage(&canMsgStandby);
+  
+  while (1)
+      {
+        if (mcp2515.readMessage(&canMsgStart) == MCP2515::ERROR_OK){
+        int b=canMsgStart.data[0];  /// Read RTD button from the Dashboard ESP via CAN
+        int t=canMsgStart.data[1];  /// Read TS status from the Dashboard ESP via CAN
+        if(b==1 && digitalRead(BPS)==1 && t==1)
+          {
+          tone(buzzer, 3000, 3000);
+          break;
+          }
+        }
+      }
+}
+
+int plausibility_check(long POT1, long POT2) {                ///Plausibility with ratio by dividing. This will depend on how we place the sensors
+
+  int IMPLAUSIBLE = 1;
+
+  float RATIO = POT1 / POT2;                        ///Ratio between the two potentiometers
+  float DIFF = abs(RATIO - POT_RATIO);              ///Calculating the absolute difference between them, keeping in mind the defined ratio
+
+  if (DIFF > MAX_DIFF) {
+    IMPLAUSIBLE = 1;
+  } else {
+    IMPLAUSIBLE = 0;
   }
-  if(STATUS==1) STATUS=0;
-  last = millis();
+  return IMPLAUSIBLE;                   ///1=IMPLAUSIBLE /// 0=PLAUSIBLE
+}
+
+int plausibility_check2(long POT1, long POT2) {           ///Plausibility with ratio by subtraction. This is used when the sensors have an offset relative to each other.
+
+  int IMPLAUSIBLE = 1;
+  
+  float RATIO=abs(POT1-POT2);
+  float DIFF=abs(RATIO-POT_OFFSET);
+  
+  if (DIFF > MAX_DIFF) {
+    IMPLAUSIBLE = 1;
+  } else {
+    IMPLAUSIBLE = 0;
+  }
+  return IMPLAUSIBLE;                   ///1=IMPLAUSIBLE /// 0=PLAUSIBLE
 }
 
 void loop() {
-  // Update moving average for pedal sensors:
-  // Average to 0:
-  AV_APS1 = 0;                        
-  AV_APS2 = 0;
-  AV_BPS1 = 0;
-  AV_BPS2 = 0;
 
-  for (int i = 0; i < (BUFFERSIZE-1); i++) {
-    // Add value for average:
-    AV_APS1 += LPF_APS1[i];             
-    AV_APS2 += LPF_APS2[i];
-    AV_BPS1 += LPF_BPS1[i];
-    AV_BPS2 += LPF_BPS2[i];
-    // Shift all values by one:
-    LPF_APS1[i+1] = LPF_APS1[i];        
-    LPF_APS2[i+1] = LPF_APS2[i];
-    LPF_BPS1[i+1] = LPF_BPS1[i];
-    LPF_BPS2[i+1] = LPF_BPS2[i];
-  }
-  // Read new current sensor values:
-  LPF_APS1[0] = analogRead(APS1_IN);      
-  LPF_APS2[0] = analogRead(APS2_IN);
-  LPF_BPS1[0] = analogRead(BPS1_IN);
-  LPF_BPS1[0] = analogRead(BPS2_IN);
-  // Add new value to average:
-  AV_APS1 += LPF_APS1[0];               
-  AV_APS2 += LPF_APS2[0];
-  AV_BPS1 += LPF_BPS1[0];
-  AV_BPS2 += LPF_BPS2[0];
-  // Divide sum to find average value:
-  AV_APS1 /= BUFFERSIZE;  
-  AV_APS2 /= BUFFERSIZE;
-  AV_BPS1 /= BUFFERSIZE;
-  AV_BPS2 /= BUFFERSIZE;
-  // Map to fix slope (and make sure not to create DIV/0 errors in the process)
-  AV_APS1 = map(AV_APS1-APS1_OFFSET, APS1_LOW, APS1_HIGH, 1, 1024)
-  AV_APS2 = map(AV_APS2-APS2_OFFSET, APS2_LOW, APS2_HIGH, 1024, 1)
-  AV_BPS1 = map(AV_BPS1-BPS1_OFFSET, BPS1_LOW, BPS1_HIGH, 1, 1024)
-  AV_BPS2 = map(AV_BPS2-BPS2_OFFSET, BPS2_LOW, BPS2_HIGH, 1024, 1)
-  // Check for signal shorts to GND or 5V
-  if( AV_APS1 < 1 || AV_APS1 > 1024) STATUS = 11;
-  if( AV_APS2 < 1 || AV_APS2 > 1024) STATUS = 12;
-  if( AV_BPS1 < 1 || AV_BPS1 > 1024) STATUS = 21;
-  if( AV_BPS2 < 1 || AV_BPS2 > 1024) STATUS = 22;
- 
-  // Check for signal plausibility
-  if( plausibility_check(AV_APS1, AV_APS2)){
-    THROTTLE = 0;
-    BRAKE = 0;
-    STATUS = 30;
-  }
-  if( plausibility_check(AV_BPS1, AV_BPS2)){
-    THROTTLE = 0;
-    BRAKE = 0;
-    STATUS = 40;
-  } 
+    if(millis()-last_read>=5){                   ///It will only enter every 5 ms
+    APPS1=analogRead(A0);
+    APPS2=analogRead(A1);                        ///Reading accelerator values
+    APPS[1]=APPS[0];
+    APPS[0]=(APPS1+APPS2)/2;                     ///Place the new value in the vector, without move the old one in the next position
 
- 
-  //Map to PWM range (0-255) and constrain
-  THROTTLE = map( (AV_APS1+AV_APS2)/2, 1, 1024, 0, 255);
-  THROTTLE = constrain(THROTTLE, 0, 255);
-  BRAKE = map( (AV_BPS1+AV_BPS2)/2, 1, 1024, 0, 255);
-  BRAKE = constrain(BRAKE, 0, 255);
-
-
-  // Prevent BSPD from triggering
-  // - 5kW from 66kW is 7.5%, so 19 of 255.
-  // - 50% of brake is considered 'hard braking' for now.
-  if (THROTTLE >= 19 && BRAKE >= 127) {
-    THROTTLE = 0;
-    BRAKE = 0;    
-    STATUS = 50;    
+    last_read=millis();
     }
-  
-  // If time since last packet transmission > DATA_RATE, send new packet:
-  if(millis() - last > DATA_RATE){
-    Serial.print("Throttle setting is: ")
-    Serial.println(THROTTLE);
-    Serial.print("Brake setting is: ")
-    Serial.println(BRAKE);
-    Serial.print("Error state is: ")
-    Serial.println(STATUS)
 
-    CAN.beginPacket(0x12);
-    CAN.write(THROTTLE);
-    CAN.write(BRAKE);
-    CAN.write(STATUS);
-    CAN.endPacket();
-    // Update timer:
-    last=millis();
-  }
+    APPS_AVERAGE=(APPS[0]+APPS[1])/2;            /// Will always work, no dividing by 0
+    
+    if(plausibility_check2(APPS1,APPS2)==0)
+      {throttle=map(APPS_AVERAGE, 0, 1023, 0, 33);       /// Mapping the throttle value from 0 to 33 Nm and constrain. The value used for mapping is the average between two different readings
+       throttle=constrain(throttle, 0, 33);
+      }
+    else
+      throttle=0;
+    
+    
+    if(throttle>0)
+      digitalWrite(led, HIGH);
+    else                                          /// Turning on an LED when pressing the accelerator
+      digitalWrite(led, LOW);
+
+    brake=digitalRead(BPS);
+    if(brake==1)
+      digitalWrite(led2, HIGH);
+      else                                       /// Turning on an LED when pressing the brake
+      digitalWrite(led2,LOW);
+    
+    
+
+    /* Prevent BSPD from triggering. Don't think this is allowed
+
+    if(throttle >=19 && brake>=127)
+    {
+      throttle=0;
+      brake=0;
+    }
+    */
+
+    
+     /*
+      *  if TRQRq is 0, EanableRq should be off
+      */
+
+
+     if(millis() - last_can >= DATA_RATE){                     // If time since last packet transmission > DATA_RATE, send new packet. For now it will only enter the if statement every 10ms
+      Serial.print("Throttle setting is: ");
+      Serial.println(throttle);
+      Serial.print("Brake setting is: ");
+      Serial.println(brake);
+      canMsgRTD.can_id  = 0x210;
+      canMsgRTD.can_dlc = 8;
+      canMsgRTD.data[0] = 1;      
+      canMsgRTD.data[1] = 0;   
+      canMsgRTD.data[2] = 0x00;           
+      canMsgRTD.data[3] = 0x00;
+      canMsgRTD.data[4] = 0;
+      canMsgRTD.data[5] = 1;
+      canMsgRTD.data[6] = 10000;
+      canMsgRTD.data[7] = 30;//throttle;
+      mcp2515.sendMessage(&canMsgRTD);
+      last_can=millis();
+     }
+
+    /*if tractive system is off
+      {
+        fake_setup();  
+      }
+      */
+
 }
-
-bool plausibility_check(long POT1, long POT2) {
-
-  bool IMPLAUSIBLE = true;
-
-  float RATIO = (float)POT1 / (float)POT2;
-  float DIFF = abs(RATIO - POT_RATIO);
-
-  if (DIFF > MAX_DIFF) {
-    IMPLAUSIBLE = true;
-  } else {
-    IMPLAUSIBLE = false;
-  }
-  return IMPLAUSIBLE;
-}
-
