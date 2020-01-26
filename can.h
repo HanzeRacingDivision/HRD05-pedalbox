@@ -22,6 +22,11 @@ void CAN_update() {
 }
 
 void send_DMC_standby() {
+  
+  DMC_SpdRq = 0;
+  DMC_TrqRq = 0;
+  DMC_EnableRq = 0;
+  
   DMC_CTRL.data[0] = 0;
   DMC_CTRL.data[1] = 0x00;
   DMC_CTRL.data[2] = 0;
@@ -34,11 +39,24 @@ void send_DMC_standby() {
   last_can = millis();
 }
 
-void send_DMC_CTRL(int Torque, int Enable){
-  // data_0 = {1,0,0,0,0,0,0,1};
-  DMC_CTRL.data[0] = Enable;
-  DMC_CTRL.data[2] = 10000;                 // Motorola format, should be split over 2 bytes: data[2] and data[3].
-  DMC_CTRL.data[4] = Torque;                // Motorola format, however, since this is 33Nm max, it fits within 1 byte. 
+void send_DMC_CTRL(int throttle, int enable){
+
+  /// Keep track of inverter values globally. Could probably set all of these without providing them as an argument to this function. 
+  DMC_SpdRq = max_RPM;
+  DMC_TrqRq = throttle;
+  DMC_EnableRq = enable;
+
+  /// TODO: Set up the first byte of data in the DMC_CTRL message
+  /// byte bitData[6] = {DMC_EnableRq, DMC_ModeRq, DMC_OscLimEnableRq, DMC_ClrError, DMC_NegTrqSpd, DMC_PosTrqSpd};
+  /// DMC_CTRL.data[0] = bitData;
+  DMC_CTRL.data[0] = 1;
+
+  /// Set speed and torque request
+  /// TODO: test highByte and lowByte functions
+  DMC_CTRL.data[2] = highByte(DMC_SpdRq);         /// Motorola format
+  DMC_CTRL.data[2] = lowByte(DMC_SpdRq);          /// Motorola format 
+  DMC_CTRL.data[4] = DMC_TrqRq;                   /// Motorola format, however, since this is 33Nm max, it fits within 1 byte. 
+  
   mcp2515.sendMessage(&DMC_CTRL);
   last_can = millis();
 }

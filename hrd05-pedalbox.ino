@@ -60,16 +60,19 @@ void loop() {
       THROTTLE = 0;
     }
  
-    if(millis() - last_can >= DATA_RATE){
     
-       if ( THROTTLE == 0 && DMC_SpdAct < min_speed ){        /// Prevent bucking by disabling control under a minium speed. DMC_SpdAct is the actual RPM of the motor.
-          DMC_EnableRq = 0;
-          THROTTLE = 0;
-       } else { 
-          DMC_EnableRq = 1;
-       }
-       
-       send_DMC_CTRL(THROTTLE, DMC_EnableRq);  
+    if ( THROTTLE == 0 && DMC_SpdAct < min_speed ){         /// Prevent bucking by disabling control under a minium speed.
+      DMC_EnableRq = 0;
+      DMC_TrqRq = 0;
+      THROTTLE = 0;
+    } else { 
+      DMC_EnableRq = 1;
+      DMC_TrqRq = THROTTLE;
+    }
+    
+    if(millis() - last_can >= DATA_RATE){                   /// Send CAN to the inverter. 
+
+       send_DMC_CTRL(DMC_TrqRq, DMC_EnableRq);  
        
     }
 
