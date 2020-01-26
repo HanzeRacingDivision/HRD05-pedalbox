@@ -12,23 +12,24 @@
 */
 
 #include <SPI.h>
-#include "variables.h"
-#include "variables_dmc.h"
-#include "can.h"
+#include "variables.h"              /// Variables specific to the pedalbox
+#include "variables_dmc.h"          /// Variables used for the DMC514 inverter
+#include "pin_mapping.h"            /// Arduino pin mapping + input and output settings
+#include "can.h"                    /// Our own CAN variables and code
+
+unsigned long last_read;            /// Millis when last loop was executed.
 
 void setup() {
 
   Serial.begin(9600);
-  SPI.begin();                     /// Initializes the SPI bus by setting SCK, MOSI, and SS to outputs, pulling SCK and MOSI low, and SS high.
-  
-  pinMode(BPS, INPUT);
-  pinMode(BUZZER, OUTPUT);
+  SPI.begin();                      /// Initializes the SPI bus by setting SCK, MOSI, and SS to outputs, pulling SCK and MOSI low, and SS high.
 
   last_read = millis();
-  
+
+  PIN_setup();
   CAN_setup();
   
-  delay(1000);                    /// Wait on the inverter to get ready
+  delay(1000);                      /// Wait on the inverter to get ready
   
   awaitRTD();
 
@@ -61,7 +62,7 @@ void loop() {
  
     if(millis() - last_can >= DATA_RATE){
     
-       if ( THROTTLE == 0 && DMC_SpdAct < min_rpm ){         /// Prevent bucking by disabling control under a minium speed. DMC_SpdAct is the actual RPM of the motor.
+       if ( THROTTLE == 0 && DMC_SpdAct < min_rpm ){        /// Prevent bucking by disabling control under a minium speed. DMC_SpdAct is the actual RPM of the motor.
           DMC_EnableRq = 0;
           THROTTLE = 0;
        } else { 

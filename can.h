@@ -6,7 +6,6 @@ unsigned long last_can;                                 /// Holds time in ms.
 struct can_frame MSG;                                   /// Generic CAN message
 struct can_frame DASH_MSG = { 0x036, 2 };               /// Dashboard message
 
-
 void CAN_setup() {
   mcp2515.reset();
   mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
@@ -15,7 +14,7 @@ void CAN_setup() {
 }
 
 void CAN_update() {
-  if (mcp2515.readMessage(&MSG) == MCP2515::ERROR_OK){
+  if (mcp2515.readMessage(&MSG) == MCP2515::ERROR_OK){  /// If there are no errors, start reading message pointer
     if(DMC_TRQS.can_id == MSG.can_id) {
       DMC_SpdAct = MSG.data[6];
     }
@@ -39,7 +38,7 @@ void send_DMC_CTRL(int Torque, int Enable){
   // data_0 = {1,0,0,0,0,0,0,1};
   DMC_CTRL.data[0] = Enable;
   DMC_CTRL.data[2] = 10000;                 // Motorola format, should be split over 2 bytes: data[2] and data[3].
-  DMC_CTRL.data[4] = Torque;                // Motorola format, however, since this a max of 33Nm, it fits within 1 byte. 
+  DMC_CTRL.data[4] = Torque;                // Motorola format, however, since this is 33Nm max, it fits within 1 byte. 
   mcp2515.sendMessage(&DMC_CTRL);
   last_can = millis();
 }
