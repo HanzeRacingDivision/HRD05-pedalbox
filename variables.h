@@ -2,7 +2,6 @@
 
 int ReadyToDrive = 0;               /// Dashboard ready to drive status
 int TSReady = 0;                    /// Dashboard tractive system status
-int min_rpm = 400;                  /// Manually calculated motor RPM where the vehicle has a speed of <5 km/h
 
 int APPS1 = 0;                      /// Potentiometer 1 of the accelerator pedal
 int APPS2 = 0;                      /// Potentiometer 2 of the accelerator pedal

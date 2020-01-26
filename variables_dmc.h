@@ -1,5 +1,7 @@
 #include <mcp2515.h>                                    /// https://github.com/autowp/arduino-mcp2515
 
+int min_speed = 400;                                    /// Manually calculated motor RPM where the vehicle has a speed of <5 km/h
+
 struct can_frame DMC_CTRL = { 0x210, 8 };               /// Brusa DMC514: Enable power and manage control modes
 struct can_frame DMC_TRQS = { 0x258, 8 };               /// Brusa DMC514: Read ready state, torque, speed, etc.
 struct can_frame DMC_LIM  = { 0x211, 8 };               /// Brusa DMC514: Voltage and current limits

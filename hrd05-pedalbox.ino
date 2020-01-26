@@ -62,7 +62,7 @@ void loop() {
  
     if(millis() - last_can >= DATA_RATE){
     
-       if ( THROTTLE == 0 && DMC_SpdAct < min_rpm ){        /// Prevent bucking by disabling control under a minium speed. DMC_SpdAct is the actual RPM of the motor.
+       if ( THROTTLE == 0 && DMC_SpdAct < min_speed ){        /// Prevent bucking by disabling control under a minium speed. DMC_SpdAct is the actual RPM of the motor.
           DMC_EnableRq = 0;
           THROTTLE = 0;
        } else { 
