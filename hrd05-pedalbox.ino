@@ -36,9 +36,13 @@ void setup() {
 }
 
 void loop() {
-
+  
     CAN_update();
 
+    if(!car_is_ready()){
+        awaitRTD();
+    }
+    
     THROTTLE = 0;
     
     if(millis() - last_read >= DATA_RATE) {
@@ -59,70 +63,57 @@ void loop() {
     if(THROTTLE > 5 && BRAKE > 50){                         /// Prevent BSPD from triggering (torque request > 5Nm and braking more than 50%)
       THROTTLE = 0;
     }
- 
     
     if ( THROTTLE == 0 && DMC_SpdAct < min_speed ){         /// Prevent bucking by disabling control under a minium speed.
       DMC_EnableRq = 0;
       DMC_TrqRq = 0;
       THROTTLE = 0;
-    } else { 
+    } else {
       DMC_EnableRq = 1;
       DMC_TrqRq = THROTTLE;
     }
     
     if(millis() - last_can >= DATA_RATE){                   /// Send CAN to the inverter. 
-
-       send_DMC_CTRL(DMC_TrqRq, DMC_EnableRq);  
+    
+      Serial.print("SENDING APPS");
+      send_DMC_CTRL(33, DMC_EnableRq);
        
     }
-
-    /* tractive system is off logic
-    if(){
-      awaitRTD();  
-    }
-    */
 
 }
 
 
 void awaitRTD() {                                             /// Logic for the Ready To Drive mode. 
   
-  send_DMC_standby();
+  DMC_Ready = 0;
+  TSReady = 0;
+  ReadyToDrive = 0;
   
-  while (1)
-  {
-    if (mcp2515.readMessage(&MSG) == MCP2515::ERROR_OK)
-    {
+  send_DMC_standby(0);
+  
+  while (1) {
 
-      if(MSG.can_id == DASH_MSG.can_id) {
-       
-        ReadyToDrive = MSG.data[0];                           /// Read RTD button from the Dashboard
-        TSReady      = MSG.data[1];                           /// Read TS status from the Dashboard
-      
-        Serial.print("Dashboard RTD: "); 
-        Serial.println(ReadyToDrive); 
-        Serial.print("Dash TS status: "); 
-        Serial.println(TSReady); 
-      }
+    Serial.print("Awaiting ready state:");
+    Serial.println();
+    Serial.print(DMC_Ready);
+    Serial.print(ReadyToDrive);
+    Serial.print(TSReady);
+    Serial.println();
+    Serial.println();
 
-      if(DMC_TRQS.can_id == MSG.can_id) {
-        DMC_Ready = MSG.data[0];
-        
-        Serial.print("DMC_Ready: ");
-        Serial.print(DMC_Ready);
-      }
-      
-      Serial.println();
+    CAN_update();
 
-      // && digitalRead(BPS) == 1)
-      if(DMC_Ready    == 1 && 
-         ReadyToDrive == 1 && 
-         TSReady      == 1) {
-          tone(BUZZER, 800, 3000);
-          break;
-      }
+    if(car_is_ready()) {
+        tone(BUZZER, 800, 3000);
+        break;
     }
+
+    delay(DATA_RATE);
   }
+}
+
+bool car_is_ready() {
+  return (DMC_Ready && ReadyToDrive && TSReady);        /// Needs the brake pedal status as well. 
 }
 
 

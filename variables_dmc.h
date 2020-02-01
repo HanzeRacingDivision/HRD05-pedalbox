@@ -17,7 +17,7 @@ bool DMC_OscLimEnableRq = 0;
 bool DMC_ClrError = 0;
 bool DMC_NegTrqSpd = 0;
 bool DMC_PosTrqSpd = 0;
-int DMC_SpdRq = 0;
+int DMC_SpdRq = max_RPM;
 int DMC_TrqRq = 0;
 
 /// DMC_TRQS
