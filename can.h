@@ -26,15 +26,13 @@ void send_DMC_standby() {
   DMC_SpdRq = 0;
   DMC_TrqRq = 0;
   DMC_EnableRq = 0;
+
+  /// Set speed and torque request
+  DMC_CTRL.data[0] = 0;                           /// For standby mode, all values in the first byte should be 0. 
+  DMC_CTRL.data[2] = highByte(DMC_SpdRq);         /// Motorola format
+  DMC_CTRL.data[2] = lowByte(DMC_SpdRq);          /// Motorola format 
+  DMC_CTRL.data[4] = DMC_TrqRq;                   /// Motorola format, however, since this is 33Nm max, it fits within 1 byte. 
   
-  DMC_CTRL.data[0] = 0;
-  DMC_CTRL.data[1] = 0x00;
-  DMC_CTRL.data[2] = 0;
-  DMC_CTRL.data[3] = 0x00;
-  DMC_CTRL.data[4] = 0x00;
-  DMC_CTRL.data[5] = 0x00;
-  DMC_CTRL.data[6] = 0x00;
-  DMC_CTRL.data[7] = 0x00;
   mcp2515.sendMessage(&DMC_CTRL);
   last_can = millis();
 }
@@ -46,16 +44,28 @@ void send_DMC_CTRL(int throttle, int enable){
   DMC_TrqRq = throttle;
   DMC_EnableRq = enable;
 
-  /// TODO: Set up the first byte of data in the DMC_CTRL message
-  /// byte bitData[6] = {DMC_EnableRq, DMC_ModeRq, DMC_OscLimEnableRq, DMC_ClrError, DMC_NegTrqSpd, DMC_PosTrqSpd};
-  /// DMC_CTRL.data[0] = bitData;
-  DMC_CTRL.data[0] = 1;
+  int bitData[8];
+  
+  bitData[0] = DMC_EnableRq;
+  bitData[1] = DMC_ModeRq;
+  bitData[2] = DMC_OscLimEnableRq;
+  bitData[3] = 0;
+  bitData[4] = DMC_ClrError;
+  bitData[5] = 0;
+  bitData[6] = DMC_NegTrqSpd;
+  bitData[7] = DMC_PosTrqSpd;
 
+  int DMC_TrqRq = throttle * 100;                 /// Requested torque, 0.01Nm/bit
+  
   /// Set speed and torque request
-  /// TODO: test highByte and lowByte functions
+  DMC_CTRL.data[0] = bitData;
+
+  Serial.println(DMC_CTRL.data[0]);
+  
   DMC_CTRL.data[2] = highByte(DMC_SpdRq);         /// Motorola format
-  DMC_CTRL.data[2] = lowByte(DMC_SpdRq);          /// Motorola format 
-  DMC_CTRL.data[4] = DMC_TrqRq;                   /// Motorola format, however, since this is 33Nm max, it fits within 1 byte. 
+  DMC_CTRL.data[3] = lowByte(DMC_SpdRq);          /// Motorola format 
+  DMC_CTRL.data[4] = highByte(DMC_TrqRq);         /// Motorola format
+  DMC_CTRL.data[5] = lowByte(DMC_TrqRq);          /// Motorola format
   
   mcp2515.sendMessage(&DMC_CTRL);
   last_can = millis();
