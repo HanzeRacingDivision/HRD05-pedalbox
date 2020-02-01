@@ -30,8 +30,7 @@ void CAN_update() {
 
 void send_DMC_standby(bool clearError = false) {
   
-  DMC_ClrError = clearError;                      /// If there was an error, this will be 1. 
-  DMC_SpdRq = 0;
+  DMC_ClrError = clearError;                      /// If there was an error, this should be 1 to request a clear.
   DMC_TrqRq = 0;
   DMC_EnableRq = 0;
 
@@ -55,7 +54,7 @@ void send_DMC_standby(bool clearError = false) {
   mcp2515.sendMessage(&DMC_CTRL);
   last_can = millis();
 
-  if(DMC_ClrError) DMC_ClrError = 0;              /// Reset error clear bit after sending clear request
+  if(DMC_ClrError) DMC_ClrError = 0;              /// Reset error clear signal after sending request
 }
 
 void send_DMC_CTRL(int throttle = 0, int enable = 0){
