@@ -31,7 +31,7 @@ void setup() {
   
   delay(1000);                      /// Wait on the inverter to get ready
   
-  awaitRTD();
+  //awaitRTD();
 
 }
 
@@ -39,20 +39,31 @@ void loop() {
   
     CAN_update();
 
-    if(!car_is_ready()){
+    /*if(!car_is_ready()){
         awaitRTD();
     }
+    */
     
     THROTTLE = 0;
     
     if(millis() - last_read >= DATA_RATE) {
       APPS1 = analogRead(APPS1_IN);
-      APPS2 = analogRead(APPS2_IN);
+      APPS2 = analogRead(APPS2_IN); 
+      ///
+      Serial.print("Value of the first pot is: ");
+      Serial.println(APPS1);
+      Serial.println();
+      Serial.print("Value of the second pot is: ");
+      Serial.println(APPS2);
+      Serial.println();
+      ///
       last_read = millis();
     }
 
     if(is_plausible(APPS1, APPS2)){
-      
+
+      Serial.println("SENSORS ARE PLAUSIBLE");
+      Serial.println();
       APPS = (APPS1+APPS2)/2;                               /// Calcalute the average of both APPS values
       
       THROTTLE = map(APPS, 0, 1023, 0, 33);                 /// Torque request: map the throttle value from 0 to 33 Nm
@@ -75,8 +86,11 @@ void loop() {
     
     if(millis() - last_can >= DATA_RATE){                   /// Send CAN to the inverter. 
     
-      Serial.print("SENDING APPS");
-      send_DMC_CTRL(33, DMC_EnableRq);
+      Serial.println("SENDING APPS");
+      Serial.print("Torque is: ");
+      Serial.println(THROTTLE);
+      Serial.println();
+      send_DMC_CTRL(THROTTLE, DMC_EnableRq);
        
     }
 
@@ -117,30 +131,15 @@ bool car_is_ready() {
 }
 
 
-bool is_plausible(float POT1, float POT2) {             /// Plausibility with ratio by dividing. This will depend on how we place the sensors
 
-  bool PLAUSIBLE = false;
-
-  float RATIO = POT1 / POT2;                            /// Ratio between the two sensors
-  float DIFF = abs(RATIO - APPS_RATIO);                 /// Calculating the absolute difference between them
-
-  if (DIFF > MAX_DIFF) {                                /// Compare the sensor difference to the defined maximum error
-    PLAUSIBLE = false;
-  } else {
-    PLAUSIBLE = true;
-  }
-  
-  return PLAUSIBLE;
-}
-
-bool is_plausible2(float POT1, float POT2) {            /// Plausibility with ratio by subtraction. This is used when the sensors have an offset relative to each other.
+bool is_plausible(float POT1, float POT2) {            /// Plausibility with ratio by subtraction. This is used when the sensors have an offset relative to each other.
 
   bool PLAUSIBLE = false;
   
   float RATIO = abs(POT1-POT2);
   float DIFF = abs(RATIO-POT_OFFSET);
   
-  if (DIFF > MAX_DIFF) {
+  if (DIFF > MAX_DIFF_TRAVEL) {
     PLAUSIBLE = false;
   } else {
     PLAUSIBLE = true;
