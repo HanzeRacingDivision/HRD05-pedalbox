@@ -31,7 +31,7 @@ void setup() {
   
   delay(1000);                      /// Wait on the inverter to get ready
   
-  //awaitRTD();
+//  awaitRTD();
 
 }
 
@@ -39,12 +39,11 @@ void loop() {
   
     CAN_update();
 
-    /*if(!car_is_ready()){
-        awaitRTD();
-    }
-    */
+//    if(!car_is_ready()){
+//        awaitRTD();
+//    }
     
-    THROTTLE = 0;
+    DMC_TrqRq = 0;
     
     if(millis() - last_read >= DATA_RATE) {
       APPS1 = analogRead(APPS1_IN);
@@ -60,44 +59,37 @@ void loop() {
       last_read = millis();
     }
 
-    if(is_plausible(APPS1, APPS2)){
-
-      Serial.println("SENSORS ARE PLAUSIBLE");
-      Serial.println();
+    if( is_plausible( APPS1, APPS2 )){
       APPS = (APPS1+APPS2)/2;                               /// Calcalute the average of both APPS values
-      
       THROTTLE = map(APPS, 0, 1023, 0, 33);                 /// Torque request: map the throttle value from 0 to 33 Nm
       THROTTLE = constrain(THROTTLE, 0, 33);                /// Torque request: never exceed 33 Nm
-      
+    }
+
+    if( THROTTLE < PEDAL_DEADZONE ) {
+      THROTTLE = 0;                                         /// Don't respond to low throttle values
     }
     
-    if(THROTTLE > 5 && BRAKE > 50){                         /// Prevent BSPD from triggering (torque request > 5Nm and braking more than 50%)
+    if( THROTTLE > 5 && BRAKE > 50 ){                       /// Prevent BSPD from triggering (torque request > 5Nm and braking more than 50%)
       THROTTLE = 0;
     }
     
-    if ( THROTTLE == 0 && DMC_SpdAct < min_speed ){         /// Prevent bucking by disabling control under a minium speed.
+    if ( (THROTTLE < PEDAL_DEADZONE) && (DMC_SpdAct < MIN_SPEED) ){         /// Prevent bucking by disabling control under a minium speed.
       DMC_EnableRq = 0;
-      DMC_TrqRq = 0;
       THROTTLE = 0;
     } else {
       DMC_EnableRq = 1;
-      DMC_TrqRq = THROTTLE;
     }
     
     if(millis() - last_can >= DATA_RATE){                   /// Send CAN to the inverter. 
-    
       Serial.println("SENDING APPS");
       Serial.print("Torque is: ");
       Serial.println(THROTTLE);
       Serial.println();
       send_DMC_CTRL(THROTTLE, DMC_EnableRq);
-       
     }
-
 }
 
-
-void awaitRTD() {                                             /// Logic for the Ready To Drive mode. 
+void awaitRTD() {                                            /// Logic for the Ready To Drive mode. 
   
   DMC_Ready = 0;
   TSReady = 0;
@@ -130,19 +122,17 @@ bool car_is_ready() {
   return (DMC_Ready && ReadyToDrive && TSReady);        /// Needs the brake pedal status as well. 
 }
 
-
-
-bool is_plausible(float POT1, float POT2) {            /// Plausibility with ratio by subtraction. This is used when the sensors have an offset relative to each other.
+bool is_plausible(const float &POT1, const float &POT2) {            /// Plausibility with ratio by subtraction. This is used when the sensors have an offset relative to each other.
 
   bool PLAUSIBLE = false;
   
-  float RATIO = abs(POT1-POT2);
-  float DIFF = abs(RATIO-POT_OFFSET);
+  float RATIO = abs(POT1 - POT2);
+  float DIFF  = abs(RATIO - POT_OFFSET);
   
-  if (DIFF > MAX_DIFF_TRAVEL) {
-    PLAUSIBLE = false;
-  } else {
+  if (DIFF < MAX_DIFF) {
     PLAUSIBLE = true;
+  } else {
+    Serial.println("SENSORS ARE NOT PLAUSIBLE"); 
   }
 
   return PLAUSIBLE;

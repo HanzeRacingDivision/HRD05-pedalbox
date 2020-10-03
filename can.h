@@ -59,8 +59,8 @@ void send_DMC_standby(bool clearError = false) {
 
 void send_DMC_CTRL(int throttle = 0, int enable = 0){
 
-  DMC_TrqRq = throttle;
   DMC_EnableRq = enable;
+  DMC_TrqRq = throttle * 100;                   /// Requested torque, 0.01Nm/bit
 
   byte bitData[8];
 
@@ -73,9 +73,7 @@ void send_DMC_CTRL(int throttle = 0, int enable = 0){
   bitData[6] = DMC_NegTrqSpd;
   bitData[7] = DMC_PosTrqSpd;
 
-  Serial.println(DMC_CTRL.data[0]);               /// Needs testing
-
-  int DMC_TrqRq = throttle * 100;                 /// Requested torque, 0.01Nm/bit
+  Serial.println(DMC_CTRL.data[0]);               /// Needs testing             
   
   DMC_CTRL.data[0] = bitData;
   DMC_CTRL.data[2] = highByte(DMC_SpdRq);         /// Motorola format
