@@ -31,7 +31,7 @@ void setup() {
   
   delay(1000);                      /// Wait on the inverter to get ready
   
-//  awaitRTD();
+  awaitRTD();
 
 }
 
@@ -39,9 +39,9 @@ void loop() {
   
     CAN_update();
 
-//    if(!car_is_ready()){
-//        awaitRTD();
-//    }
+    if(!car_is_ready()){
+        awaitRTD();
+    }
     
     DMC_TrqRq = 0;
     

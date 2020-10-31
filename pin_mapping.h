@@ -3,6 +3,5 @@
 #define APPS2_IN A1                 // Accelerator pedal sensor #2
 
 void PIN_setup() {
-  pinMode(BPS, INPUT);
   pinMode(BUZZER, OUTPUT);
 }
