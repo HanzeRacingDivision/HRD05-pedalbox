@@ -36,6 +36,8 @@ void setup() {
 }
 
 void loop() {
+
+    reset_ready_state();
   
     CAN_update();
 
@@ -48,39 +50,36 @@ void loop() {
     if(millis() - last_read >= DATA_RATE) {
       APPS1 = analogRead(APPS1_IN);
       APPS2 = analogRead(APPS2_IN); 
-      ///
+      last_read = millis();
+      
       Serial.print("Value of the first pot is: ");
       Serial.println(APPS1);
       Serial.println();
       Serial.print("Value of the second pot is: ");
       Serial.println(APPS2);
       Serial.println();
-      ///
-      last_read = millis();
-    }
 
-    if( is_plausible( APPS1, APPS2 )){
-      APPS = (APPS1+APPS2)/2;                               /// Calcalute the average of both APPS values
-      THROTTLE = map(APPS, 0, 1023, 0, 33);                 /// Torque request: map the throttle value from 0 to 33 Nm
-      THROTTLE = constrain(THROTTLE, 0, 33);                /// Torque request: never exceed 33 Nm
-    }
-
-    if( THROTTLE < PEDAL_DEADZONE ) {
-      THROTTLE = 0;                                         /// Don't respond to low throttle values
-    }
+      if( is_plausible( APPS1, APPS2 )){
+        APPS = (APPS1+APPS2)/2;                               /// Calcalute the average of both APPS values
+        THROTTLE = map(APPS, 0, 1023, 0, 33);                 /// Torque request: map the throttle value from 0 to 33 Nm
+        THROTTLE = constrain(THROTTLE, 0, 33);                /// Torque request: never exceed 33 Nm
+      }
+  
+      if( THROTTLE < PEDAL_DEADZONE ) {
+        THROTTLE = 0;                                         /// Don't respond to low throttle values
+      }
+      
+      if( THROTTLE > 5 && BRAKE > 50 ){                       /// Prevent BSPD from triggering (torque request > 5Nm and braking more than 50%)
+        THROTTLE = 0;
+      }
+      
+      if ( (THROTTLE < PEDAL_DEADZONE) && (DMC_SpdAct < MIN_SPEED) ){         /// Prevent bucking by disabling control under a minium speed.
+        DMC_EnableRq = 0;
+        THROTTLE = 0;
+      } else {
+        DMC_EnableRq = 1;
+      }
     
-    if( THROTTLE > 5 && BRAKE > 50 ){                       /// Prevent BSPD from triggering (torque request > 5Nm and braking more than 50%)
-      THROTTLE = 0;
-    }
-    
-    if ( (THROTTLE < PEDAL_DEADZONE) && (DMC_SpdAct < MIN_SPEED) ){         /// Prevent bucking by disabling control under a minium speed.
-      DMC_EnableRq = 0;
-      THROTTLE = 0;
-    } else {
-      DMC_EnableRq = 1;
-    }
-    
-    if(millis() - last_can >= DATA_RATE){                   /// Send CAN to the inverter. 
       Serial.println("SENDING APPS");
       Serial.print("Torque is: ");
       Serial.println(THROTTLE);
@@ -116,6 +115,12 @@ void awaitRTD() {                                            /// Logic for the R
 
     delay(DATA_RATE);
   }
+}
+
+void reset_ready_state() {
+  DMC_Ready = 0;
+  ReadyToDrive = 0;
+  TSReady = 0;
 }
 
 bool car_is_ready() {
