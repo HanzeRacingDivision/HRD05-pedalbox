@@ -1,0 +1,6 @@
+{
+    "sketch": "hrd05-pedalbox.ino",
+    "board": "arduino:avr:uno",
+    "port": "COM3",
+    "programmer": "AVRISP mkII"
+}

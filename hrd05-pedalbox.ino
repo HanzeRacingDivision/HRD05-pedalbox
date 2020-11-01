@@ -12,133 +12,62 @@
 */
 
 #include <SPI.h>
-#include "variables.h"              /// Variables specific to the pedalbox
-#include "variables_dmc.h"          /// Variables used for the DMC514 inverter
-#include "pin_mapping.h"            /// Arduino pin mapping + input and output settings
-#include "can.h"                    /// Our own CAN variables and code
+#include "config.h"                 // Configuration of tunable pedalbox variables
+#include "variables.h"              // Global variables
+#include "variables_dmc.h"          // Global variables used for the DMC514 inverter
+#include "sensors.h"                // APPS / BPS sensor reading and processing
+#include "can.h"                    // Our own CAN namespace with message signatures and functions
 
-unsigned long last_read;            /// Millis when last loop was executed.
+void setup()
+{
+    pinMode(BUZZER, OUTPUT);
+    Serial.begin(9600);
+    SPI.begin();
 
-void setup() {
-
-  Serial.begin(9600);
-  SPI.begin();                      /// Initializes the SPI bus by setting SCK, MOSI, and SS to outputs, pulling SCK and MOSI low, and SS high.
-
-  last_read = millis();
-
-  PIN_setup();
-  CAN_setup();
-  
-  delay(1000);                      /// Wait on the inverter to get ready
-  
-  awaitRTD();
-
+    delay(1000); // @TODO: wait on the inverter to get ready
 }
 
-void loop() {
+void loop()
+{
 
-    reset_ready_state();
-  
-    CAN_update();
+    SENSORS::read();
+    
+    if (car_is_ready()) {  // Check if the car is in ready to drive mode. 
 
-    if(!car_is_ready()){
-        awaitRTD();
-    }
-    
-    DMC_TrqRq = 0;
-    
-    if(millis() - last_read >= DATA_RATE) {
-      APPS1 = analogRead(APPS1_IN);
-      APPS2 = analogRead(APPS2_IN); 
-      last_read = millis();
-      
-      Serial.print("Value of the first pot is: ");
-      Serial.println(APPS1);
-      Serial.println();
-      Serial.print("Value of the second pot is: ");
-      Serial.println(APPS2);
-      Serial.println();
+        CAN::get_messages();
+        
+        if (CAN::should_send_update()) { // We're ready to drive, send pedalbox signals via CAN
+                
+            CAN::DMC514::send_DMC_CTRL(SENSORS::get_APPS(), SENSORS::get_BPS());
 
-      if( is_plausible( APPS1, APPS2 )){
-        APPS = (APPS1+APPS2)/2;                               /// Calcalute the average of both APPS values
-        THROTTLE = map(APPS, 0, 1023, 0, 33);                 /// Torque request: map the throttle value from 0 to 33 Nm
-        THROTTLE = constrain(THROTTLE, 0, 33);                /// Torque request: never exceed 33 Nm
-      }
-  
-      if( THROTTLE < PEDAL_DEADZONE ) {
-        THROTTLE = 0;                                         /// Don't respond to low throttle values
-      }
-      
-      if( THROTTLE > 5 && BRAKE > 50 ){                       /// Prevent BSPD from triggering (torque request > 5Nm and braking more than 50%)
-        THROTTLE = 0;
-      }
-      
-      if ( (THROTTLE < PEDAL_DEADZONE) && (DMC_SpdAct < MIN_SPEED) ){         /// Prevent bucking by disabling control under a minium speed.
-        DMC_EnableRq = 0;
-        THROTTLE = 0;
-      } else {
-        DMC_EnableRq = 1;
-      }
-    
-      Serial.println("SENDING APPS");
-      Serial.print("Torque is: ");
-      Serial.println(THROTTLE);
-      Serial.println();
-      send_DMC_CTRL(THROTTLE, DMC_EnableRq);
+        }
+
+    } else {
+        
+        // The car is not ready yet. The car remains in standby state until car_is_ready() returns true.
+
+        CAN::get_messages(); // Get CAN messages from inverter and dashboard. Contains activity state and RTD request
+
+        if (CAN::should_send_update()) {
+            CAN::DMC514::set_standby(); // @TODO: clear error by sending '1' to this function if needed
+        }
+
+        Serial.println("Awaiting ready state. Current status:");
+        Serial.print("DMC514: ");       Serial.println(DMC_Ready);
+        Serial.print("TS: ");           Serial.println(TSReady);
+        Serial.print("Dash ready: ");   Serial.println(ReadyToDrive);
+        Serial.println();
+
+        // Play ready to drive sound if the car is ready. 
+        // @TODO: Use a simple on/off digital output to the buzzer (with a pre-set frequency)
+        // @TODO: Look into the blocking nature of tone(). This will currently stop the main loop from running for the entire duration of the sound.
+        if (car_is_ready())
+            tone(BUZZER, 800, 3000);
     }
 }
 
-void awaitRTD() {                                            /// Logic for the Ready To Drive mode. 
-  
-  DMC_Ready = 0;
-  TSReady = 0;
-  ReadyToDrive = 0;
-  
-  send_DMC_standby(0);
-  
-  while (1) {
-
-    Serial.print("Awaiting ready state:");
-    Serial.println();
-    Serial.print(DMC_Ready);
-    Serial.print(ReadyToDrive);
-    Serial.print(TSReady);
-    Serial.println();
-    Serial.println();
-
-    CAN_update();
-
-    if(car_is_ready()) {
-        tone(BUZZER, 800, 3000);
-        break;
-    }
-
-    delay(DATA_RATE);
-  }
-}
-
-void reset_ready_state() {
-  DMC_Ready = 0;
-  ReadyToDrive = 0;
-  TSReady = 0;
-}
-
-bool car_is_ready() {
-  return (DMC_Ready && ReadyToDrive && TSReady);        /// Needs the brake pedal status as well. 
-}
-
-bool is_plausible(const float &POT1, const float &POT2) {            /// Plausibility with ratio by subtraction. This is used when the sensors have an offset relative to each other.
-
-  bool PLAUSIBLE = false;
-  
-  float RATIO = abs(POT1 - POT2);
-  float DIFF  = abs(RATIO - POT_OFFSET);
-  
-  if (DIFF < MAX_DIFF) {
-    PLAUSIBLE = true;
-  } else {
-    Serial.println("SENSORS ARE NOT PLAUSIBLE"); 
-  }
-
-  return PLAUSIBLE;
+bool car_is_ready()
+{
+    // @TODO Needs the brake pedal status as well.
+    return (DMC_Ready && ReadyToDrive && TSReady);
 }

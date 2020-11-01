@@ -1,25 +1,19 @@
-#include <mcp2515.h>                                    /// https://github.com/autowp/arduino-mcp2515
+#pragma once
 
-const int MIN_SPEED = 400;                                    /// Manually calculated motor RPM where the vehicle has a speed of <5 km/h
-const int MAX_RPM = 10000;                                    /// Maximum RPM of the E-racer motor
+// Here we store the currently known values of the DMC514 inverter. 
+// Makes it possible to compare these values during the control loop. 
+// Note that these values will become out-of-date if the CAN connection is lost. 
 
-struct can_frame DMC_CTRL = { 0x210, 8 };               /// Brusa DMC514: Enable power and manage control modes
-struct can_frame DMC_TRQS = { 0x258, 8 };               /// Brusa DMC514: Read ready state, torque, speed, etc.
-struct can_frame DMC_LIM  = { 0x211, 8 };               /// Brusa DMC514: Voltage and current limits
-struct can_frame DMC_ACTV = { 0x258, 8 };               /// Brusa DMC514: Actual DC voltage and current 
-struct can_frame DMC_TEMP = { 0x458, 8 };               /// Brusa DMC514: Inverter and motor temperatures
-struct can_frame DMC_ERR  = { 0x25A, 8 };               /// Brusa DMC514: Errors (described in Brusa documentation) 
+// DMC_TRQS - Current state of the inverter
+volatile int DMC_Ready = 0;                     // Inverter ready state
+volatile int DMC_SpdAct = 0;                    // Current motor RPM (1RPM/bit)
 
-/// DMC_CTRL
-volatile bool DMC_EnableRq = 0;
-volatile bool DMC_ModeRq = 0;
-volatile bool DMC_OscLimEnableRq = 0;
-volatile bool DMC_ClrError = 0;
-volatile bool DMC_NegTrqSpd = 0;
-volatile bool DMC_PosTrqSpd = 0;
-volatile int DMC_SpdRq = MAX_RPM;
-volatile int DMC_TrqRq = 0;
-
-/// DMC_TRQS
-volatile int DMC_Ready = 0;                   /// Inverter ready state
-volatile int DMC_SpdAct = 0;                  /// Current motor RPM
+// DMC_CTRL - Control the inverter / send commands
+volatile bool DMC_EnableRq = 0;                 // Enables inverter power stage (if possible)
+volatile bool DMC_ModeRq = 0;                   // 0 = torque mode, 1 = speed mode. Should always be TORQUE mode. 
+volatile bool DMC_OscLimEnableRq = 0;           // See Brusa documentation
+volatile bool DMC_ClrError = 0;                 // Request to clear error latch. Can only be done if DMC_EnableRq = 0.
+volatile bool DMC_NegTrqSpd = 0;                // If torque mode enabled: 0 = negative speed disabled, 1 = negative speed enabled
+volatile bool DMC_PosTrqSpd = 1;                // If torque mode enabled: 0 = positive speed disabled, 1 = positive speed enabled
+volatile int DMC_SpdRq = MAX_RPM;               // If torque mode enabled: sets the speed limit. (Could be interesting for a 'pit' mode).
+volatile int DMC_TrqRq = 0;                     // Torque request (0.01Nm/bit)
