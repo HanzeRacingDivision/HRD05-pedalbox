@@ -12,7 +12,7 @@
  */
 
 #include <SPI.h>
-#include "config.h"                 // Configuration of tunable pedalbox variables
+#include "config.h"                 // Configuration of TUNABLE pedalbox variables
 #include "variables.h"              // Global variables
 #include "variables_dmc.h"          // Global variables used for the DMC514 inverter
 #include "sensors.h"                // APPS / BPS sensor reading and processing
@@ -26,7 +26,7 @@ void setup()
 
     CAN::setup();
 
-    delay(1000);            // @TODO: wait on the inverter to get ready
+    delay(1000); // @TODO: wait on the inverter to get ready
 }
 
 void loop()
@@ -54,11 +54,11 @@ void loop()
             CAN::DMC514::set_standby(); // @TODO: clear error by sending '1' to this function if needed
         }
 
-        Serial.println("Awaiting ready state. Current status:");
-        Serial.print("DMC514: ");       Serial.println(DMC_Ready);
-        Serial.print("TS: ");           Serial.println(TSReady);
-        Serial.print("Dash ready: ");   Serial.println(ReadyToDrive);
-        Serial.println();
+        Serial.println("Awaiting ready state.");
+        // Serial.print("DMC514: ");       Serial.println(DMC_Ready);
+        // Serial.print("TS: ");           Serial.println(TSReady);
+        // Serial.print("Dash ready: ");   Serial.println(ReadyToDrive);
+        // Serial.println();
 
         // Play ready to drive sound if the car is ready. 
         // @TODO: Use a simple on/off digital output to the buzzer (with a pre-set frequency)

@@ -2,24 +2,19 @@
 
 /**
  * Gets latest sensor values and processes values
- * 
- * @TODO: add a small delay between analogReads to prevent multiplexing issues
- * @TODO: add a moving average to smooth sensor data over ~50-100ms
  */
 void SENSORS::read()
 {
 
-    APPS1 = analogRead(APPS1_IN);
-    APPS2 = analogRead(APPS2_IN);
-
-    BPS1 = analogRead(BPS1_IN);
-    BPS1 = analogRead(BPS2_IN);
+    APPS1.update();
+    APPS2.update();
+    BPS1.update();
+    BPS2.update();
     
     last_read = millis();
 
-    // Serial.print("APPS1 raw: ");    Serial.println(APPS1);
-    // Serial.print("APPS2 raw: ");    Serial.println(APPS2);
-    // Serial.println();
+    Serial.println(APPS1.average);
+    Serial.println(APPS2.average);
 }
 
 /**
@@ -43,7 +38,7 @@ float SENSORS::check_plausibility(const float &POT1, const float &POT2)
 
     } else {
         
-        Serial.println("SENSORS ARE NOT PLAUSIBLE :(");
+        Serial.println("SENSORS ARE NOT PLAUSIBLE");
 
         return 0.0f; // Return 0 if there is a discrepancy.
 
@@ -60,7 +55,7 @@ float SENSORS::check_plausibility(const float &POT1, const float &POT2)
 float SENSORS::get_APPS()
 {
 
-    APPS = SENSORS::check_plausibility(APPS1, APPS2);
+    float APPS = SENSORS::check_plausibility(APPS1.average, APPS2.average);
 
     if (APPS < POT_DEADZONE)
         APPS = 0.0f;
@@ -81,7 +76,7 @@ float SENSORS::get_BPS()
     // @TODO: Remove test code
     return 0.0f;
 
-    BPS = SENSORS::check_plausibility(BPS1, BPS2);
+    float BPS = SENSORS::check_plausibility(BPS1.average, BPS2.average);
     BRAKE = map(BPS, 0, 1023, 0, MAX_BRAKE * 100) * 0.01; // Hack: map casts to longs, so multiply and devide by 100 to keep precision :)
 
     return BRAKE;
