@@ -1,15 +1,15 @@
 /*
-      __  __                          ____             _                ____  _       _      _
-     / / / /___ _____  ____  ___     / __ \____ ______(_)___  ____ _   / __ \(_)   __(_)____(_)___  ____
-    / /_/ / __ `/ __ \/_  / / _ \   / /_/ / __ `/ ___/ / __ \/ __ `/  / / / / / | / / / ___/ / __ \/ __ \
-   / __  / /_/ / / / / / /_/  __/  / _, _/ /_/ / /__/ / / / / /_/ /  / /_/ / /| |/ / (__  ) / /_/ / / / /
-  /_/ /_/\__,_/_/ /_/ /___/\___/  /_/ |_|\__,_/\___/_/_/ /_/\__, /  /_____/_/ |___/_/____/_/\____/_/ /_/
-
-  Pedalbox code for the HRD05
-  Mark Oosting, 2020
-  Armand Micu, 2020
-
-*/
+ *      __  __                          ____             _                ____  _       _      _
+ *     / / / /___ _____  ____  ___     / __ \____ ______(_)___  ____ _   / __ \(_)   __(_)____(_)___  ____
+ *    / /_/ / __ `/ __ \/_  / / _ \   / /_/ / __ `/ ___/ / __ \/ __ `/  / / / / / | / / / ___/ / __ \/ __ \
+ *   / __  / /_/ / / / / / /_/  __/  / _, _/ /_/ / /__/ / / / / /_/ /  / /_/ / /| |/ / (__  ) / /_/ / / / /
+ *  /_/ /_/\__,_/_/ /_/ /___/\___/  /_/ |_|\__,_/\___/_/_/ /_/\__, /  /_____/_/ |___/_/____/_/\____/_/ /_/
+ *
+ *  Pedalbox code for the HRD05
+ *  Mark Oosting, 2020
+ *  Armand Micu, 2020
+ *
+ */
 
 #include <SPI.h>
 #include "config.h"                 // Configuration of tunable pedalbox variables
@@ -24,7 +24,9 @@ void setup()
     Serial.begin(9600);
     SPI.begin();
 
-    delay(1000); // @TODO: wait on the inverter to get ready
+    CAN::setup();
+
+    delay(1000);            // @TODO: wait on the inverter to get ready
 }
 
 void loop()
@@ -32,7 +34,7 @@ void loop()
 
     SENSORS::read();
     
-    if (car_is_ready()) {  // Check if the car is in ready to drive mode. 
+    if (car_is_ready()) { // Check if the car is in ready to drive mode. 
 
         CAN::get_messages();
         

@@ -12,7 +12,7 @@
 
 // PEDAL TUNING 
 const int POT_OFFSET = 100;                 // The physical offset difference between the sensors, 0-1023
-const int MAX_DIFF = 50;                    // Maximum difference between sensors. Should not be more than 10% of 0-1023 (~100)
+const int POT_MAX_ERROR = 50;               // Maximum difference between sensors. Should not be more than 10% of 0-1023 (~100)
 const int POT_DEADZONE = 20;                // Minimum pedal position to activate torque, 0-1023
 
 // INVERTER / MOTOR SETUP 

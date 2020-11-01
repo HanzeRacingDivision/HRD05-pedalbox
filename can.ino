@@ -2,7 +2,9 @@
 
 /**
  * Sets up mcp2515 CAN bus. 
+ * 
  * @TODO: set up message filters. 
+ * 
  */
 void CAN::setup()
 {
@@ -20,23 +22,16 @@ bool CAN::should_send_update() {
 
 /**
  * Retrieve CAN messages from the bus. 
+ * 
  * Note that there is always a 'stack' of messages to be read. 
  * readMessage() only retrieves the first message. Therefore, this function should be called continously.
  */
 void CAN::get_messages()
 {
-
-    // If we haven't received CAN in a while, something must be wrong. Go into safe state!
-    if((millis() - last_valid_can_received) >= CAN_TIMEOUT) {
-        Serial.println("ERROR: CAN CONNECTION LOST! PEDALBOX SET TO SAFE STATE.");
-        TSReady = 0;
-        ReadyToDrive = 0;
-        DMC_Ready = 0;
-        DMC_TrqRq = 0;
-    }
+    int read_status = mcp2515.readMessage(&MSG);
 
     // Read first CAN message on the CAN stack
-    if (mcp2515.readMessage(&MSG) == MCP2515::ERROR_OK)
+    if (read_status == MCP2515::ERROR_OK)
     {
 
         if (MSG.can_id == CAN::DASH::DASH_MSG.can_id) {
@@ -50,6 +45,16 @@ void CAN::get_messages()
             DMC_SpdAct = MSG.data[6];
             last_valid_can_received = millis();
         }
+    }
+
+    // If we haven't received valid CAN in a while, something must be wrong. Go into safe state!
+    if ((millis() - last_valid_can_received) >= CAN_TIMEOUT)
+    {
+        Serial.println("ERROR: CAN CONNECTION LOST! PEDALBOX SET TO SAFE STATE.");
+        TSReady = 0;
+        ReadyToDrive = 0;
+        DMC_Ready = 0;
+        DMC_TrqRq = 0;
     }
 }
 
@@ -73,7 +78,7 @@ void CAN::DMC514::send_DMC_CTRL(float THROTTLE, float BRAKE)
 
     // Prevent BSPD from triggering (torque request > 5Nm and braking more than 50%)
     if (THROTTLE > 5.0f && (BRAKE > (MAX_BRAKE * 0.5f)))
-        THROTTLE = 0;
+        THROTTLE = 0.0f;
 
     // Reduce requested torque by the braking request. Allows the torque request to become negative (regenerative braking).
     TORQUE_REQUEST = THROTTLE - BRAKE;
@@ -81,7 +86,7 @@ void CAN::DMC514::send_DMC_CTRL(float THROTTLE, float BRAKE)
     if (DMC_SpdAct > MIN_SPEED) {
 
         // If regenerative braking is disabled, do not allow negative torque request.
-        if(!ENABLE_REGENERATIVE_BRAKING) TORQUE_REQUEST = constrain(TORQUE_REQUEST, 0.0f, MAX_TORQUE); 
+        if (!ENABLE_REGENERATIVE_BRAKING) TORQUE_REQUEST = constrain(TORQUE_REQUEST, 0.0f, MAX_TORQUE); 
 
     } else {
         
@@ -90,7 +95,7 @@ void CAN::DMC514::send_DMC_CTRL(float THROTTLE, float BRAKE)
         TORQUE_REQUEST = constrain(TORQUE_REQUEST, 0.0f, MAX_TORQUE); 
 
         // Prevent bucking by disabling inverter control at low speed. Also refer to Brusa control PDF.
-        if(TORQUE_REQUEST < 1.0f) {
+        if (TORQUE_REQUEST < 1.0f) {
             DMC_EnableRq = 0;
             TORQUE_REQUEST = 0.0f;
         } else {
@@ -98,9 +103,9 @@ void CAN::DMC514::send_DMC_CTRL(float THROTTLE, float BRAKE)
         }
 
     }
-    
+
     // Convert final torque (Nm) to 0.01Nm/bit
-    DMC_TrqRq = TORQUE_REQUEST * 100; 
+    DMC_TrqRq = TORQUE_REQUEST * 100.0f; 
 
     byte bitData[8];
     bitData[0] = DMC_EnableRq;

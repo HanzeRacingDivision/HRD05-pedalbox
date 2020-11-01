@@ -34,17 +34,18 @@ void SENSORS::read()
 float SENSORS::check_plausibility(const float &POT1, const float &POT2)
 {
 
-    float DIFF = abs(POT1 - POT2);
+    float DIFF = POT1 - POT2;
+    float ERROR = abs(DIFF - POT_OFFSET);
 
-    if (DIFF < MAX_DIFF) {
+    if (ERROR < POT_MAX_ERROR) {
         
-        return (POT1 + POT2) / 2.0f;    // Take average if plausible
+        return (POT1 + POT2) / 2.0f; // Take average if plausible
 
     } else {
         
         Serial.println("SENSORS ARE NOT PLAUSIBLE :(");
 
-        return 0.0f;                    // Return 0 if there is a discrepancy.
+        return 0.0f; // Return 0 if there is a discrepancy.
 
     }
 }
@@ -52,6 +53,8 @@ float SENSORS::check_plausibility(const float &POT1, const float &POT2)
 /**
  * Get processed APPS (throttle) signal.
  *
+ * @TODO: Adjust throttle mapping to incorporate POT_OFFSET (so it fully reaches the maximum)
+ * 
  * @return Plausibility checked, mapped and constrained throttle value based on APPS sensor values
  */
 float SENSORS::get_APPS()
@@ -61,9 +64,8 @@ float SENSORS::get_APPS()
 
     if (APPS < POT_DEADZONE)
         APPS = 0.0f;
-
-    THROTTLE = map(APPS, 0, 1023, 0, MAX_TORQUE);       // Torque request: map the throttle value from 0 to maximum available torque
-    THROTTLE = constrain(THROTTLE, 0, MAX_TORQUE);      // Torque request: never exceed the maximum allowable torque
+    
+    THROTTLE = map(APPS, 0, 1023, 0, MAX_TORQUE * 100) * 0.01; // Hack: map casts to longs, so multiply and devide by 100 to keep precision :)
 
     return THROTTLE;
 }
@@ -80,8 +82,7 @@ float SENSORS::get_BPS()
     return 0.0f;
 
     BPS = SENSORS::check_plausibility(BPS1, BPS2);
-    BRAKE = map(BPS, 0, 1023, 0, MAX_BRAKE);     // Torque request: map the throttle value from 0 to maximum available torque
-    BRAKE = constrain(THROTTLE, 0, MAX_BRAKE);   // Torque request: never exceed the maximum allowable torque
+    BRAKE = map(BPS, 0, 1023, 0, MAX_BRAKE * 100) * 0.01; // Hack: map casts to longs, so multiply and devide by 100 to keep precision :)
 
     return BRAKE;
 }
