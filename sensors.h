@@ -23,4 +23,6 @@ namespace SENSORS {
     float get_APPS();
     float get_BPS();
 
+    bool is_brake_pressed();
+
 }

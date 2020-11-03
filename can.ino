@@ -3,7 +3,7 @@
 /**
  * Sets up mcp2515 CAN bus. 
  * 
- * @TODO: set up message filters. 
+ * @todo set up message filters. 
  * 
  */
 void CAN::setup()
@@ -48,6 +48,8 @@ void CAN::get_messages()
     }
 
     // If we haven't received valid CAN in a while, something must be wrong. Go into safe state!
+    // @todo Pulling the car out of ready to drive mode **IS NOT A SAFE STATE**. 
+    // If the car would be out of RTD, the inverter would be set to standby, and would be unable to combat the motors back-EMF. 
     if ((millis() - last_valid_can_received) >= CAN_TIMEOUT)
     {
         Serial.println("ERROR: CAN CONNECTION LOST! PEDALBOX SET TO SAFE STATE.");
@@ -60,9 +62,6 @@ void CAN::get_messages()
 
 /**
  * Sends a control message to DMC514 inverter. 
- * 
- * @TODO:   Look into "DMC5_ControlConcept_0.3.pdf" -> section 6.1. 
- *          Enabling/disabling the inverter at high speed could cause a large back-emf braking torque (dangerous)
  * 
  * @param THROTTLE  The torque (in Nm) that the driver requested
  * @param BRAKE     The braking torque (in Nm) that the driver requested
@@ -135,7 +134,7 @@ void CAN::DMC514::send_DMC_CTRL(float THROTTLE, float BRAKE)
 /**
  * Set the DMC514 inverter to standby mode. 
  * 
- * @TODO: Handle / track inverter errors.
+ * @todo Handle / track inverter errors.
  * 
  * @param clearError requests an error clear to continue operation
  */

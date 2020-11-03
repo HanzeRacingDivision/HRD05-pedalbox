@@ -6,7 +6,7 @@
  * Simple moving average over a number of samples
  * Based on https://www.arduino.cc/en/Tutorial/BuiltInExamples/Smoothing
  * 
- * @TODO: add a small delay between analogReads to prevent multiplexing issues
+ * @todo add a small delay between analogReads to prevent multiplexing issues
  */
 class MovingAverage {
 private:

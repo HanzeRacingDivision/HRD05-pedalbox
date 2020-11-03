@@ -26,7 +26,8 @@ void setup()
 
     CAN::setup();
 
-    delay(1000); // @TODO: wait on the inverter to get ready
+    // @todo wait on the inverter to get ready
+    delay(1000); 
 }
 
 void loop()
@@ -51,7 +52,9 @@ void loop()
         CAN::get_messages(); // Get CAN messages from inverter and dashboard. Contains activity state and RTD request
 
         if (CAN::should_send_update()) {
-            CAN::DMC514::set_standby(); // @TODO: clear error by sending '1' to this function if needed
+            // @todo look into the correct safe state when CAN is lost.
+            // @todo clear error by sending '1' to this function if needed
+            CAN::DMC514::set_standby();
         }
 
         Serial.println("Awaiting ready state.");
@@ -60,16 +63,32 @@ void loop()
         // Serial.print("Dash ready: ");   Serial.println(ReadyToDrive);
         // Serial.println();
 
-        // Play ready to drive sound if the car is ready. 
-        // @TODO: Use a simple on/off digital output to the buzzer (with a pre-set frequency)
-        // @TODO: Look into the blocking nature of tone(). This will currently stop the main loop from running for the entire duration of the sound.
+        // @rule EV 4.12 - Ready to drive sound
+        // @todo Use a simple on/off digital output to the buzzer (with a pre-set frequency)
+        // @todo Look into the blocking nature of tone(). This will currently stop the main loop from running for the entire duration of the sound.
         if (car_is_ready())
-            tone(BUZZER, 800, 3000);
+            tone(BUZZER, 800, 2000);
     }
 }
 
+
+/**
+ * Plausibility check, checks if the ratio between the 2 sensors per pedal correspond with the expected ratio. 
+ * 
+ * @rule EV 4.11.6 - Ready to drive mode
+ * 
+ * @todo Also requires the brake pedal status
+ * @todo EV 4.11.7
+ * 
+ * @return boolean whether the car is in ready to drive mode. 
+ */
+
 bool car_is_ready()
 {
-    // @TODO Needs the brake pedal status as well.
-    return (DMC_Ready && ReadyToDrive && TSReady);
+    return (
+        TSReady && 
+        DMC_Ready && 
+        SENSORS::is_brake_pressed() &&
+        ReadyToDrive
+    );
 }
